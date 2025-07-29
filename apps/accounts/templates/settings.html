@@ -1,0 +1,344 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Настройки аккаунта</title>
+  <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
+  <style>
+    body {
+      font-family: 'Inter', sans-serif;
+    }
+    .sidebar-transition {
+      transition: transform 0.3s ease-in-out;
+    }
+    .tab-underline {
+      transition: all 0.2s ease-in-out;
+    }
+    .toast {
+      animation: slideIn 0.3s ease-out, fadeOut 0.3s ease-in 2.7s forwards;
+    }
+    @keyframes slideIn {
+      from { transform: translateY(-100%); opacity: 0; }
+      to { transform: translateY(0); opacity: 1; }
+    }
+    @keyframes fadeOut {
+      from { opacity: 1; }
+      to { opacity: 0; }
+    }
+  </style>
+</head>
+<body 
+  x-data="accountSettings()" 
+  x-init="lucide.createIcons(); loadPlans()" 
+  class="min-h-screen bg-gray-100 flex text-gray-900"
+>
+
+  <!-- Sidebar Overlay -->
+  <div x-show="sidebarOpen" class="fixed inset-0 bg-black bg-opacity-50 z-40 lg:hidden" @click="sidebarOpen = false"></div>
+
+  <!-- Sidebar -->
+  {% include "dashboard/common/sidebar.html" %}
+
+  <!-- Main -->
+  <div class="flex-1 lg:ml-64">
+    <header class="bg-white shadow border-b">
+      <div class="px-6 py-4 flex justify-between items-center">
+        <div class="flex items-center">
+          <button @click="sidebarOpen = true" class="lg:hidden p-2 hover:bg-gray-100 rounded mr-2">
+            <i data-lucide="menu" class="w-5 h-5 text-gray-600"></i>
+          </button>
+          <h1 class="text-2xl font-semibold">Настройки аккаунта</h1>
+        </div>
+      </div>
+    </header>
+
+    <!-- Toast Notifications -->
+    <div class="fixed top-4 right-4 z-50 space-y-2">
+      <template x-if="toastMessage">
+        <div class="toast bg-blue-600 text-white px-4 py-2 rounded shadow-lg" x-text="toastMessage"></div>
+      </template>
+    </div>
+
+    <div class="p-6">
+      <div class="max-w-4xl mx-auto">
+
+        <!-- Сообщения Django -->
+        {% if messages %}
+          <div class="mb-6 space-y-2">
+            {% for msg in messages %}
+              <div class="px-4 py-2 rounded bg-blue-100 text-blue-800" x-init="showToast('{{ msg|escapejs }}')">
+                {{ msg }}
+              </div>
+            {% endfor %}
+          </div>
+        {% endif %}
+
+        <!-- Вкладки -->
+        <div class="border-b mb-8">
+          <nav class="-mb-px flex space-x-8 overflow-x-auto">
+            <button @click="activeTab = 'basic'"
+                    class="py-2 px-1 border-b-2 font-medium text-sm whitespace-nowrap tab-underline"
+                    :class="activeTab==='basic' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-600 hover:text-blue-600 hover:border-blue-200'">
+              Основное
+            </button>
+            <button @click="activeTab = 'security'"
+                    class="py-2 px-1 border-b-2 font-medium text-sm whitespace-nowrap tab-underline"
+                    :class="activeTab==='security' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-600 hover:text-blue-600 hover:border-blue-200'">
+              Безопасность
+            </button>
+            <button @click="activeTab = 'billing'"
+                    class="py-2 px-1 border-b-2 font-medium text-sm whitespace-nowrap tab-underline"
+                    :class="activeTab==='billing' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-600 hover:text-blue-600 hover:border-blue-200'">
+              Тарифы
+            </button>
+            <button @click="goToEmails()"
+                    class="py-2 px-1 border-b-2 font-medium text-sm whitespace-nowrap tab-underline border-transparent text-gray-600 hover:text-blue-600 hover:border-blue-200">
+              Адреса отправителей
+            </button>
+            <button @click="activeTab = 'danger'"
+                    class="py-2 px-1 border-b-2 font-medium text-sm whitespace-nowrap tab-underline"
+                    :class="activeTab==='danger' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-600 hover:text-blue-600 hover:border-blue-200'">
+              Удаление
+            </button>
+          </nav>
+        </div>
+
+        <div class="bg-white rounded-lg shadow-lg border">
+
+          <!-- Основное -->
+          <div x-show="activeTab==='basic'" class="p-6 space-y-6">
+            <h3 class="text-lg font-semibold text-gray-900">Основная информация</h3>
+            <div class="relative">
+              <label class="block text-sm font-medium text-gray-700 mb-1">Полное имя</label>
+              <input type="text" x-model="fullName" @input.debounce="updateName()"
+                     class="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+              <template x-if="errors.name">
+                <div class="absolute top-full mt-1 flex items-center text-red-600 text-sm">
+                  <i data-lucide="alert-circle" class="w-4 h-4 mr-1"></i>
+                  <span x-text="errors.name"></span>
+                </div>
+              </template>
+            </div>
+            <div class="relative">
+              <label class="block text-sm font-medium text-gray-700 mb-1">Email</label>
+              <input type="email" value="{{ request.user.email }}" readonly
+                     class="w-full px-3 py-2 border rounded-lg bg-gray-50 text-gray-500 cursor-not-allowed">
+              <span class="absolute right-3 top-10 text-xs text-gray-400">Нельзя изменить</span>
+            </div>
+          </div>
+
+          <!-- Безопасность -->
+          <div x-show="activeTab==='security'" class="p-6 space-y-6">
+            <h3 class="text-lg font-semibold text-gray-900">Смена пароля</h3>
+            <div class="relative">
+              <label class="block text-sm font-medium text-gray-700 mb-1">Текущий пароль</label>
+              <input :type="showCurrent ? 'text' : 'password'" x-model="currentPassword"
+                     class="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+              <button type="button" class="absolute right-3 top-9 text-gray-500" @click="showCurrent = !showCurrent">
+                <i :data-lucide="showCurrent ? 'eye-off' : 'eye'" class="w-5 h-5"></i>
+              </button>
+            </div>
+            <div class="relative">
+              <label class="block text-sm font-medium text-gray-700 mb-1">Новый пароль</label>
+              <input :type="showNew ? 'text' : 'password'" x-model="newPassword"
+                     class="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+              <button type="button" class="absolute right-3 top-9 text-gray-500" @click="showNew = !showNew">
+                <i :data-lucide="showNew ? 'eye-off' : 'eye'" class="w-5 h-5"></i>
+              </button>
+            </div>
+            <div class="relative">
+              <label class="block text-sm font-medium text-gray-700 mb-1">Подтвердите пароль</label>
+              <input :type="showConfirm ? 'text' : 'password'" x-model="confirmPassword"
+                     class="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+              <button type="button" class="absolute right-3 top-9 text-gray-500" @click="showConfirm = !showConfirm">
+                <i :data-lucide="showConfirm ? 'eye-off' : 'eye'" class="w-5 h-5"></i>
+              </button>
+            </div>
+            <template x-if="errors.password">
+              <div class="flex items-center text-red-600 text-sm">
+                <i data-lucide="alert-circle" class="w-4 h-4 mr-1"></i>
+                <span x-text="errors.password"></span>
+              </div>
+            </template>
+            <button @click="changePassword()"
+                    :disabled="!canChange"
+                    class="px-4 py-2 rounded-lg text-white shadow-md transition-colors"
+                    :class="canChange ? 'bg-blue-600 hover:bg-blue-700' : 'bg-gray-300 cursor-not-allowed'">
+              Сменить пароль
+            </button>
+          </div>
+
+          <!-- Тарифы -->
+          <div x-show="activeTab==='billing'" class="p-6 space-y-6">
+            <h3 class="text-lg font-semibold text-gray-900">Тариф и история</h3>
+            <template x-for="plan in plans" :key="plan.start_date">
+              <div class="bg-gray-50 p-4 rounded-lg shadow-sm space-y-2">
+                <div class="flex justify-between items-center">
+                  <div>
+                    <p class="font-semibold text-gray-900" x-text="plan.plan"></p>
+                    <p class="text-sm text-gray-600" x-text="plan.start_date + ' — ' + plan.end_date"></p>
+                    <p class="text-xs text-gray-500">Доступ к премиум-функциям</p>
+                  </div>
+                  <span class="px-2 py-0.5 text-xs rounded-full text-white font-medium"
+                        :class="plan.is_active ? 'bg-green-600' : 'bg-gray-500'"
+                        x-text="plan.is_active ? 'Активен' : 'Истёк'"></span>
+                </div>
+                <button x-show="!plan.is_active"
+                        @click="/* редирект на оплату */"
+                        class="text-blue-600 text-sm font-medium hover:underline">
+                  Обновить тариф
+                </button>
+              </div>
+            </template>
+          </div>
+
+          <!-- Удаление -->
+          <div x-show="activeTab==='danger'" class="p-6">
+            <h3 class="text-lg font-semibold text-red-800">Удаление аккаунта</h3>
+            <p class="text-sm text-red-700 mb-4">
+              Действие необратимо. Все данные будут удалены.
+            </p>
+            <div class="relative">
+              <label class="block text-sm font-medium text-gray-700 mb-1">Пароль</label>
+              <input type="password" x-model="deletePassword"
+                     class="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent">
+            </div>
+            <button @click="showDeleteModal = true"
+                    :disabled="!deletePassword"
+                    class="mt-4 px-4 py-2 rounded-lg text-white shadow-md transition-colors"
+                    :class="deletePassword ? 'bg-red-600 hover:bg-red-700' : 'bg-gray-300 cursor-not-allowed'">
+              Удалить аккаунт
+            </button>
+          </div>
+
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Delete Confirmation Modal -->
+  <div x-show="showDeleteModal" class="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center">
+    <div class="bg-white rounded-lg p-6 max-w-sm w-full shadow-xl">
+      <h3 class="text-lg font-semibold text-red-800">Подтвердите удаление</h3>
+      <p class="text-sm text-gray-600 mt-2">Вы уверены, что хотите удалить аккаунт? Это действие нельзя отменить.</p>
+      <div class="mt-4 flex justify-end space-x-2">
+        <button @click="showDeleteModal = false" class="px-4 py-2 rounded-lg text-gray-700 hover:bg-gray-100">
+          Отмена
+        </button>
+        <button @click="deleteAccount(); showDeleteModal = false"
+                class="px-4 py-2 rounded-lg text-white bg-red-600 hover:bg-red-700">
+          Удалить
+        </button>
+      </div>
+    </div>
+  </div>
+
+<script>
+function accountSettings() {
+  return {
+    sidebarOpen: false,
+    activeTab: 'basic',
+    saving: false,
+    toastMessage: '',
+    showDeleteModal: false,
+
+    fullName: '{{ request.user.full_name|escapejs }}',
+    currentPassword: '',
+    newPassword: '',
+    confirmPassword: '',
+    deletePassword: '',
+    showCurrent: false,
+    showNew: false,
+    showConfirm: false,
+
+    plans: [],
+    errors: {},
+
+    goToEmails() {
+      window.location.href = '/emails/';
+    },
+
+    get canChange() {
+      return this.currentPassword && this.newPassword
+          && this.newPassword === this.confirmPassword;
+    },
+
+    showToast(message) {
+      this.toastMessage = message;
+      setTimeout(() => this.toastMessage = '', 3000);
+    },
+
+    async updateName() {
+      this.saving = true;
+      this.errors.name = '';
+      const res = await fetch('{% url "accounts:api-profile" %}', {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRFToken': '{{ csrf_token }}'
+        },
+        body: JSON.stringify({ full_name: this.fullName })
+      });
+      if (res.ok) {
+        this.showToast('Имя успешно обновлено');
+      } else {
+        const data = await res.json();
+        this.errors.name = data.full_name?.[0] || 'Ошибка сохранения';
+      }
+      this.saving = false;
+    },
+
+    async changePassword() {
+      this.errors.password = '';
+      const res = await fetch('{% url "accounts:api-password-change" %}', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRFToken': '{{ csrf_token }}'
+        },
+        body: JSON.stringify({
+          current_password: this.currentPassword,
+          new_password: this.newPassword
+        })
+      });
+      if (res.ok) {
+        this.currentPassword = this.newPassword = this.confirmPassword = '';
+        this.showToast('Пароль успешно изменен');
+      } else {
+        const data = await res.json();
+        this.errors.password = Object.values(data).flat().join(' ');
+      }
+    },
+
+    async loadPlans() {
+      const res = await fetch('{% url "accounts:api-plans" %}');
+      this.plans = await res.json();
+    },
+
+    async deleteAccount() {
+      this.errors.delete = '';
+      const res = await fetch('{% url "accounts:api-delete-account" %}', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRFToken': '{{ csrf_token }}'
+        },
+        body: JSON.stringify({ current_password: this.deletePassword })
+      });
+      if (res.status === 204) {
+        window.location.href = '/';
+      } else {
+        this.errors.delete = 'Неверный пароль';
+        this.showToast('Ошибка удаления: неверный пароль');
+      }
+    }
+  }
+}
+</script>
+
+</body>
+</html>

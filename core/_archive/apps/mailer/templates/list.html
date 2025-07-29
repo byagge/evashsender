@@ -1,0 +1,929 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Contact List Manager</title>
+  <!-- Tailwind -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Lucide Icons -->
+  <script defer src="https://unpkg.com/lucide@0.276.0/dist/umd/lucide.min.js"></script>
+  <!-- Alpine.js (defer!) -->
+  <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
+  <style>
+    [x-cloak] { display: none !important; }
+  </style>
+</head>
+<body 
+  x-data="contactManager()" 
+  x-init="init()" 
+  class="bg-gray-50 min-h-screen"
+>
+  <!-- PAGE LOADER -->
+  <div
+    x-show="isPageLoading"
+    x-cloak
+    class="fixed inset-0 bg-white flex items-center justify-center z-50"
+  >
+    <!-- Простая анимация-спиннер -->
+    <svg class="animate-spin h-12 w-12 text-blue-600" viewBox="0 0 24 24">
+      <circle
+        class="opacity-25"
+        cx="12" cy="12" r="10"
+        stroke="currentColor"
+        stroke-width="4" fill="none"
+      ></circle>
+      <path
+        class="opacity-75"
+        fill="currentColor"
+        d="M4 12a8 8 0 018-8v8H4z"
+      ></path>
+    </svg>
+  </div>
+
+  <!-- Layout Container -->
+  <div class="flex min-h-screen">
+    <!-- Sidebar -->
+    {% include "dashboard/common/sidebar.html" %}
+
+    <!-- Main Content -->
+    <div class="flex-1 md:ml-64">
+      <main class="p-6">
+        <div class="max-w-7xl mx-auto">
+          <!-- LISTS VIEW -->
+          <template x-if="view==='lists'">
+            <div>
+              <div class="flex items-center justify-between mb-8">
+                <div>
+                  <h1 class="text-3xl font-bold text-gray-900">Списки контактов</h1>
+                  <p class="text-gray-600 mt-1">Управляйте списками email-маркетинга</p>
+                </div>
+                <button @click="showCreateModal = true"
+                        class="flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
+                  <i data-lucide="plus" class="w-4 h-4 mr-2"></i>
+                  Создать новый список
+                </button>
+              </div>
+              <!-- TOOLBAR -->
+              <div class="flex items-center space-x-4 mb-6">
+                <div class="flex-1 relative">
+                  <i data-lucide="search" class="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4"></i>
+                  <input type="text" placeholder="Поиск списков..." x-model="search"
+                         class="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"/>
+                </div>
+                <div class="relative">
+                  <i data-lucide="filter" class="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4"></i>
+                  <select x-model="filterBy"
+                          class="pl-10 pr-8 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent appearance-none bg-white">
+                    <option value="all">Все списки</option>
+                    <option value="large">Большие (500+)</option>
+                    <option value="small">Маленький (&lt;500)</option>
+                    <option value="recent">Недавно обновлено</option>
+                  </select>
+                </div>
+              </div>
+              <!-- LISTS GRID -->
+              <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                <template x-for="list in filteredLists()" :key="list.id">
+                  <div class="bg-white rounded-lg border border-gray-200 p-6 hover:shadow-md transition-shadow">
+                    <div class="flex items-start justify-between mb-4">
+                      <div class="flex-1">
+                        <h3 class="text-lg font-semibold text-gray-900 mb-1" x-text="list.name"></h3>
+                        <div class="flex items-center text-sm text-gray-600 space-x-4">
+                          <span class="flex items-center">
+                            <i data-lucide="users" class="w-4 h-4 mr-1"></i>
+                            <span x-text="list.total_contacts" style="margin-right: 5px;"></span> контактов
+                          </span>
+                          <span class="flex items-center">
+                            <i data-lucide="calendar" class="w-4 h-4 mr-1"></i>
+                            <span x-text="list.updated_at.split('T')[0]"></span>
+                          </span>
+                        </div>
+                      </div>
+                      <button @click="showDeleteConfirm = list.id" class="text-gray-400 hover:text-gray-600 p-1">
+                        <i data-lucide="more-horizontal" class="w-4 h-4"></i>
+                      </button>
+                    </div>
+                    <!-- VALIDATION BAR -->
+                    <div class="mb-4">
+                      <div class="flex text-xs text-gray-600 mb-1 justify-between">
+                        <span>Допущены: <span x-text="list.valid_count"></span></span>
+                        <span>Отклонены: <span x-text="list.invalid_count"></span></span>
+                        <span>Заблокированы: <span x-text="list.blacklisted_count"></span></span>
+                      </div>
+                      <div class="w-full bg-gray-200 rounded-full h-2 overflow-hidden flex">
+                        <div class="bg-green-500" :style="`width: ${list.valid_count/list.total_contacts*100}%`"></div>
+                        <div class="bg-red-500"   :style="`width: ${list.invalid_count/list.total_contacts*100}%`"></div>
+                        <div class="bg-gray-400"  :style="`width: ${list.blacklisted_count/list.total_contacts*100}%`"></div>
+                      </div>
+                    </div>
+                    <!-- ACTIONS -->
+                    <div class="flex items-center space-x-2">
+                      <button title="Посмотреть" @click="viewList(list)" class="flex items-center px-3 py-1.5 text-blue-600 hover:bg-blue-50 rounded-md text-sm">
+                        <i data-lucide="eye" class="w-4 h-4 mr-1"></i> Просм.
+                      </button>
+                      <button title="Переименовать"
+                        @click="openRenameModal(list)"
+                        class="flex items-center px-3 py-1.5 text-gray-600 hover:bg-gray-50 rounded-md text-sm"
+                      >
+                        <i data-lucide="pen-line" class="w-4 h-4 mr-1"></i> Переим.
+                      </button>
+                      <button title="Удалить" @click="showDeleteConfirm = list.id" class="flex items-center px-3 py-1.5 text-red-600 hover:bg-red-50 rounded-md text-sm">
+                        <i data-lucide="trash-2" class="w-4 h-4 mr-1"></i> Удалить
+                      </button>
+                    </div>
+                  </div>
+                </template>
+              </div>
+              <template x-if="filteredLists().length===0">
+                <div class="text-center py-12">
+                  <i data-lucide="users" class="w-12 h-12 text-gray-400 mx-auto mb-4"></i>
+                  <h3 class="text-lg font-medium text-gray-900 mb-2">Списки не найдены</h3>
+                  <p class="text-gray-600">Для начала создайте свой первый список адресов электронной почты.</p>
+                </div>
+              </template>
+            </div>
+          </template>
+
+          <!-- CONTACTS VIEW -->
+          <template x-if="view==='contacts'">
+            <div>
+              <button @click="backToLists()"
+                      class="flex items-center text-blue-600 hover:text-blue-700 mb-4">
+                <i data-lucide="arrow-left" class="w-4 h-4 mr-2"></i> Вернуться к спискам
+              </button>
+              <div class="flex items-center justify-between mb-6">
+                <div>
+                  <h1 class="text-2xl font-bold text-gray-900" x-text="selectedList.name"></h1>
+                  <div class="flex items-center space-x-4 mt-2 text-sm text-gray-600">
+                    <span class="flex items-center">
+                      <i data-lucide="users" class="w-4 h-4 mr-1"></i>
+                      <span x-text="selectedList.total_contacts"></span> контактов
+                    </span>
+                    <span class="flex items-center">
+                      <i data-lucide="calendar" class="w-4 h-4 mr-1"></i>
+                      Обновлено <span x-text="selectedList.updated_at.split('T')[0]"></span>
+                    </span>
+                  </div>
+                </div>
+                <div class="flex space-x-3">
+                  <button @click="showImportModal=true"
+                          class="flex items-center px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50">
+                    <i data-lucide="upload" class="w-4 h-4 mr-2"></i> Импортировать
+                  </button>
+                  <button @click="showExportModal=true"
+                          class="flex items-center px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50">
+                    <i data-lucide="download" class="w-4 h-4 mr-2"></i> Экспорт
+                  </button>
+                  <button @click="openAddModal()" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+                    Добавить контакт
+                  </button>
+                </div>
+              </div>
+
+              <!-- SUMMARY -->
+              <div class="grid grid-cols-3 gap-4 mb-6">
+                <template x-for="stat in ['valid', 'invalid', 'blacklisted']" :key="stat">
+                  <div class="bg-white rounded-lg p-4 border border-gray-200 flex items-center">
+                    <i
+                      :data-lucide="stat === 'valid' ? 'check-circle' : stat === 'invalid' ? 'x-circle' : 'alert-circle'"
+                      class="w-5 h-5 mr-2"
+                      :class="stat === 'valid' ? 'text-green-500' : stat === 'invalid' ? 'text-red-500' : 'text-gray-500'"
+                    ></i>
+                    <div>
+                      <p class="text-sm text-gray-600"
+                        x-text="stat === 'valid' ? 'Действительные' : stat === 'invalid' ? 'Недействительные' : 'Черный список'">
+                      </p>
+                      <p class="text-xl font-semibold text-gray-900"
+                        x-text="selectedList[stat + '_count']">
+                      </p>
+                    </div>
+                  </div>
+                </template>
+              </div>
+
+
+              <!-- CONTACTS TABLE -->
+              <div class="bg-white rounded-lg border border-gray-200 overflow-hidden">
+                <table class="w-full">
+                  <thead class="bg-gray-50 border-b border-gray-200">
+                    <tr>
+                      <th class="w-12 px-4 py-3">
+                        <input type="checkbox" @click="toggleSelectAll()" :checked="allSelected()" class="rounded border-gray-300"/>
+                      </th>
+                      <th class="text-left px-4 py-3 text-sm font-medium text-gray-700">Email</th>
+                      <th class="text-left px-4 py-3 text-sm font-medium text-gray-700">Статус</th>
+                      <th class="text-left px-4 py-3 text-sm font-medium text-gray-700">Дата добавления</th>
+                      <th class="w-12 px-4 py-3"></th>
+                    </tr>
+                  </thead>
+                  <tbody class="divide-y divide-gray-200">
+                    <template x-for="contact in paginatedContacts()" :key="contact.id">
+                      <tr class="hover:bg-gray-50">
+                        <td class="px-4 py-3">
+                          <input type="checkbox" :value="contact.id" @click="selectContact(contact.id)"
+                                 :checked="selectedContacts.includes(contact.id)" class="rounded border-gray-300"/>
+                        </td>
+                        <td class="px-4 py-3 text-sm text-gray-900" x-text="contact.email"></td>
+                        <td class="px-4 py-3">
+                          <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium"
+                                :class="statusColor(contact.status)">
+                            <i :data-lucide="statusIcon(contact.status)" class="w-4 h-4"></i>
+                            <span class="ml-1" x-text="statusLabel(contact.status)"></span>
+                          </span>
+                        </td>
+                        <td class="px-4 py-3 text-sm text-gray-600" x-text="contact.added_date.split('T')[0]"></td>
+                        <td class="px-4 py-3">
+                          <button @click="deleteContact(contact.id)" class="text-red-600 hover:text-red-800">
+                            <i data-lucide="trash-2" class="w-4 h-4"></i>
+                          </button>
+                        </td>
+                      </tr>
+                    </template>
+                  </tbody>
+                </table>
+              </div>
+              <!-- PAGINATION -->
+              <div class="flex items-center justify-between mt-6">
+                <p class="text-sm text-gray-600">
+                  Показаны <span x-text="startIndex()+1"></span> с <span x-text="endIndex()"></span> по <span x-text="contacts.length"></span> контактов
+                </p>
+                <div class="flex space-x-2">
+                  <button @click="prevPage()" :disabled="page===1"
+                          class="px-3 py-1 border border-gray-300 rounded text-sm disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50">
+                      Предыдущий
+                  </button>
+                  <template x-for="p in totalPages()" :key="p">
+                    <button @click="page = p"
+                            class="px-3 py-1 border rounded text-sm"
+                            :class="page===p? 'bg-blue-600 text-white border-blue-600':'border-gray-300 hover:bg-gray-50'">
+                      <span x-text="p"></span>
+                    </button>
+                  </template>
+                  <button @click="nextPage()" :disabled="page===totalPages()"
+                          class="px-3 py-1 border border-gray-300 rounded text-sm disabled:opacity-50 disabled:cursor-not-allowed hover:bg-...">
+                      Следующий
+                  </button>
+                </div>
+              </div>
+            </div>
+          </template>
+        </div>
+      </main>
+    </div>
+  </div>
+
+  <!-- CREATE LIST MODAL -->
+  <div x-show="showCreateModal" x-cloak class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+    <div class="bg-white rounded-lg p-6 w-full max-w-md">
+      <h3 class="text-lg font-semibold mb-4">Создать новый список</h3>
+      <div class="space-y-4">
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">Название списка</label>
+          <input type="text" x-model="newListName" placeholder="Введите название списка..."
+                 class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent" autofocus/>
+        </div>
+        <p x-show="createError" x-text="createError" class="mt-1 text-sm text-red-600"></p>
+        <div class="flex space-x-3">
+          <button @click="showCreateModal=false" class="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50">Отмена</button>
+          <button
+            @click="createList()"
+            class="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
+            :disabled="!newListName.trim() || isCreatingList"
+          >
+            <span x-text="isCreatingList ? 'Создание…' : 'Создать список'"></span>
+          </button>
+
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div x-show="showDeleteConfirm" x-cloak  class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+      <div class="bg-white rounded-lg p-6 w-full max-w-md">
+        <h3 class="text-lg font-semibold mb-4">Удалить список</h3>
+        <p class="text-gray-600 mb-6">Вы уверены, что хотите удалить этот список? Это действие не может быть отменено.</p>
+        <div class="flex space-x-3">
+          <button @click="showDeleteConfirm = null" class="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50">Отмена</button>
+          <button @click="deleteList()" class="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700">Удалить</button>
+        </div>
+      </div>
+  </div>
+
+  <!-- IMPORT MODAL -->
+  <div x-show="showImportModal" x-cloak  class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+    <div class="bg-white rounded-lg p-6 w-full max-w-md">
+      <h3 class="text-lg font-semibold mb-4">Импортировать контакты</h3>
+
+      <!-- выбор файла или дроп -->
+      <div class="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center"
+          @dragover.prevent
+          @drop.prevent="handleFileChange($event)">
+        <i data-lucide="upload" class="w-8 h-8 text-gray-400 mx-auto mb-2"></i>
+        <p class="text-sm text-gray-600 mb-2">Перетащите сюда файл или</p>
+        <button @click="$refs.fileInput.click()" class="text-blue-600 hover:text-blue-700 text-sm font-medium">
+          выберите с устройства
+        </button>
+        <input x-ref="fileInput" type="file" accept=".csv,.txt,.json" class="hidden"
+              @change="handleFileChange($event)"/>
+        <template x-if="importFileObj">
+          <p class="mt-2 text-xs text-green-600" x-text="importFileObj.name"></p>
+        </template>
+      </div>
+
+      <!-- кнопки -->
+      <div class="flex space-x-3 mt-4">
+        <button
+          @click="closeImport()"
+          class="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50"
+        >
+          Отмена
+        </button>
+        <button
+          @click="importFile()"
+          :disabled="!importFileObj || isImporting"
+          class="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
+        >
+          <span x-text="isImporting ? 'Импортируется…' : 'Импортировать'"></span>
+        </button>
+      </div>
+      
+
+      <!-- успех -->
+      <template x-if="importSuccess">
+        <p class="mt-4 text-center text-green-600"><span class="icon-check"></span> Контакты успешно импортированы!</p>
+      </template>
+    </div>
+  </div>
+
+  <!-- ADD CONTACT MODAL -->
+  <div
+  x-show="showAddModal"
+  x-cloak 
+  class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
+  >
+  <div class="bg-white rounded-lg p-6 w-full max-w-md">
+    <h3 class="text-lg font-semibold mb-4">Добавить контакт</h3>
+
+    <div class="space-y-4">
+      <div>
+        <label class="block text-sm font-medium text-gray-700 mb-1">Адрес электронной почты</label>
+        <input
+          type="email"
+          x-model="newManualEmail"
+          placeholder="you@example.com"
+          class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+        />
+        <!-- Динамическая ошибка -->
+        <p
+          x-show="addError"
+          x-text="addError"
+          class="mt-1 text-sm text-red-600"
+        ></p>
+      </div>
+
+      <div class="flex space-x-3">
+        <button
+          @click="showAddModal = false; newManualEmail=''; addError='';"
+          class="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50"
+        >
+          Отмена
+        </button>
+        <button
+          @click="addManualContact()"
+          class="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
+          :class="{ 'opacity-50 cursor-not-allowed': isAdding }"
+          :disabled="isAdding"
+        >
+          <span x-text="isAdding ? 'Добавление…' : 'Добавить'"></span>
+        </button>
+      </div>
+    </div>
+  </div>
+  </div>
+
+  <!-- RENAME LIST MODAL -->
+  <div
+    x-show="showRenameModal" x-cloak 
+    class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-40"
+  >
+    <div class="bg-white rounded-lg p-6 w-full max-w-md">
+      <h3 class="text-lg font-semibold mb-4">Переименовать список</h3>
+
+      <div class="space-y-4">
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">Новое название</label>
+          <input
+            type="text"
+            x-model="renameListName"
+            placeholder="Введите новое название списка..."
+            class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          />
+          <p
+            x-show="renameError"
+            x-text="renameError"
+            class="mt-1 text-sm text-red-600"
+          ></p>
+        </div>
+
+        <div class="flex space-x-3">
+          <button
+            @click="closeRenameModal()"
+            class="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50"
+          >
+            Отмена
+          </button>
+          <button
+            @click="submitRename()"
+            :disabled="isRenaming || !renameListName.trim()"
+            class="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
+          >
+            <span x-text="isRenaming ? '  Сохранение…' : 'Сохранить'"></span>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- EXPORT MODAL -->
+  <div x-show="showExportModal" x-cloak class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+    <div class="bg-white rounded-lg p-6 w-full max-w-md">
+      <h3 class="text-lg font-semibold mb-4">Экспорт контактов</h3>
+      
+      <!-- Формат файла -->
+      <div class="mb-4">
+        <label class="block text-sm font-medium text-gray-700 mb-2">Формат файла</label>
+        <div class="grid grid-cols-3 gap-2">
+          <template x-for="format in ['txt', 'csv', 'json']" :key="format">
+            <button 
+              @click="selectedFormat = format"
+              class="px-3 py-2 border rounded-lg text-sm"
+              :class="selectedFormat === format ? 'bg-blue-600 text-white border-blue-600' : 'border-gray-300 hover:bg-gray-50'"
+              x-text="format.toUpperCase()"
+            ></button>
+          </template>
+        </div>
+      </div>
+
+      <!-- Типы контактов -->
+      <div class="mb-6">
+        <label class="block text-sm font-medium text-gray-700 mb-2">Типы контактов</label>
+        <div class="space-y-2">
+          <label class="flex items-center">
+            <input type="checkbox" x-model="exportTypes.valid" class="rounded border-gray-300 mr-2">
+            <span class="text-sm text-gray-700">Действительные</span>
+          </label>
+          <label class="flex items-center">
+            <input type="checkbox" x-model="exportTypes.invalid" class="rounded border-gray-300 mr-2">
+            <span class="text-sm text-gray-700">Недействительные</span>
+          </label>
+          <label class="flex items-center">
+            <input type="checkbox" x-model="exportTypes.blacklist" class="rounded border-gray-300 mr-2">
+            <span class="text-sm text-gray-700">Черный список</span>
+          </label>
+        </div>
+      </div>
+
+      <!-- Кнопки -->
+      <div class="flex space-x-3">
+        <button
+          @click="closeExportModal()"
+          class="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50"
+        >
+          Отмена
+        </button>
+        <button
+          @click="exportContacts()"
+          :disabled="!selectedFormat || !hasSelectedExportTypes() || isExporting"
+          class="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
+        >
+          <span x-text="isExporting ? 'Экспорт...' : 'Экспортировать'"></span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Alpine + API Script -->
+  <script defer>
+    const API_BASE = '/lists/api/contactlists/';
+  
+    document.addEventListener('alpine:init', () => {
+      Alpine.data('contactManager', () => ({
+        isPageLoading: true,
+        view: 'lists',
+        search: '',
+        filterBy: 'all',
+        page: 1,
+        contactsPerPage: 10,
+        lists: [],
+        contacts: [],
+        selectedList: null,
+        showCreateModal: false,
+        showDeleteConfirm: null,
+        showImportModal: false,
+        newListName: '',
+        newContactEmail: '',
+        selectedContacts: [],
+        importFileObj: null,
+        isImporting: false,
+        showAddModal: false,
+        newManualEmail: '',
+        addError: '',
+        isAdding: false,
+        createError: '',           
+        isCreatingList: false,
+        showRenameModal: false,
+        renameListId: null,
+        renameListName: '',
+        renameError: '',
+        isRenaming: false,
+        showExportModal: false,
+        selectedFormat: null,
+        exportTypes: {
+          valid: true,
+          invalid: false,
+          blacklist: false
+        },
+        isExporting: false,
+  
+        async init() {
+            this.initLucide();
+            await this.fetchLists();
+            this.isPageLoading = false;
+
+            this.$watch('view', () => setTimeout(() => this.refreshIcons(), 0));
+            this.$watch('page', () => setTimeout(() => this.refreshIcons(), 0));
+          },
+
+        async fetchLists() {
+          try {
+            const res = await fetch(API_BASE, { credentials: 'same-origin' });
+            if (!res.ok) throw new Error(`Status ${res.status}`);
+            this.lists = await res.json();
+            this.refreshIcons();
+          } catch (err) {
+            console.error('Error fetching lists:', err);
+          }
+        },
+  
+        async createList() {
+          this.createError = '';
+          if (!this.newListName.trim()) return;
+
+          this.isCreatingList = true;
+          try {
+            const res = await fetch(API_BASE, {
+              method: 'POST',
+              credentials: 'same-origin',
+              headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': getCSRFToken(),
+              },
+              body: JSON.stringify({ name: this.newListName })
+            });
+
+            if (res.ok) {
+              this.showCreateModal = false;
+              this.newListName = '';
+              await this.fetchLists();
+            } else if (res.status === 400) {
+              const data = await res.json();
+              this.createError = data.name?.[0] || 'Не удалось создать список';
+            } else {
+              this.createError = 'Серверная ошибка, попробуйте ещё раз';
+            }
+          } catch (err) {
+            console.error(err);
+            this.createError = 'Сетевая ошибка, проверьте соединение';
+          } finally {
+            this.isCreatingList = false;
+          }
+        },
+  
+        async deleteList() {
+          if (!this.showDeleteConfirm) return;
+          const url = `${API_BASE}${this.showDeleteConfirm}/`;
+          const res = await fetch(url, { method: 'DELETE', credentials: 'same-origin', headers: { 'X-CSRFToken': getCSRFToken() } });
+          if (res.ok) {
+            this.showDeleteConfirm = null;
+            await this.fetchLists();
+          }
+        },
+  
+        async viewList(list) {
+        this.selectedList = { ...list };
+        this.view = 'contacts';
+        this.page = 1;
+
+        await this.fetchLists();  
+        const fresh = this.lists.find(l => l.id === list.id);
+        if (fresh) this.selectedList = { ...fresh };
+
+        const url = `${API_BASE}${list.id}/contacts/`;
+        const res = await fetch(url, { credentials: 'same-origin' });
+        this.contacts = await res.json();
+        this.refreshIcons();
+      },
+
+  
+        backToLists() {
+          this.view = 'lists';
+          this.selectedList = null;
+          this.contacts = [];
+          this.fetchLists();
+        },
+  
+        async addContact() {
+          const email = this.newContactEmail.trim();
+          if (!email) return;
+          const url = `${API_BASE}${this.selectedList.id}/contacts/`;
+          const res = await fetch(url, {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCSRFToken() },
+            body: JSON.stringify({ email, status: 'valid' })
+          });
+          if (res.ok) await this.viewList(this.selectedList);
+        },
+  
+        async deleteContact(id) {
+          const url = `${API_BASE}${this.selectedList.id}/contacts/${id}/`;
+          const res = await fetch(url, { method: 'DELETE', credentials: 'same-origin', headers: { 'X-CSRFToken': getCSRFToken() } });
+          if (res.ok) await this.viewList(this.selectedList);
+        },
+  
+        filteredLists() {
+          return this.lists
+            .filter(l => l.name.toLowerCase().includes(this.search.toLowerCase()))
+            .filter(l => {
+              if (this.filterBy === 'large') return l.total_contacts >= 500;
+              if (this.filterBy === 'small') return l.total_contacts < 500;
+              if (this.filterBy === 'recent') return new Date(l.updated_at) > Date.now() - 7 * 86400000;
+              return true;
+            });
+        },
+  
+        paginatedContacts() {
+          const start = (this.page - 1) * this.contactsPerPage;
+          return this.contacts.slice(start, start + this.contactsPerPage);
+        },
+        totalPages() { return Math.ceil(this.contacts.length / this.contactsPerPage); },
+        prevPage() { if (this.page > 1) this.page--; },
+        nextPage() { if (this.page < this.totalPages()) this.page++; },
+        startIndex() { return (this.page - 1) * this.contactsPerPage; },
+        endIndex() { return Math.min(this.page * this.contactsPerPage, this.contacts.length); },
+  
+        selectContact(id) {
+          const i = this.selectedContacts.indexOf(id);
+          if (i >= 0) this.selectedContacts.splice(i, 1);
+          else this.selectedContacts.push(id);
+        },
+        allSelected() { return this.selectedContacts.length === this.contacts.length; },
+        toggleSelectAll() { this.allSelected() ? this.selectedContacts = [] : this.selectedContacts = this.contacts.map(c => c.id); },
+  
+        refreshIcons() { setTimeout(() => lucide && lucide.createIcons(), 10); },
+        initLucide() { lucide && lucide.createIcons(); },
+  
+        statusColor(status) {
+          return status === 'valid'
+            ? 'text-green-600 bg-green-50'
+            : status === 'invalid'
+            ? 'text-red-600 bg-red-50'
+            : 'text-gray-600 bg-gray-50';
+        },
+        statusIcon(status) {
+          return status === 'valid'
+            ? 'check-circle'
+            : status === 'invalid'
+            ? 'x-circle'
+            : 'alert-circle';
+        },
+        statusLabel(status) {
+          return status === 'valid'
+            ? 'Действительный'
+            : status === 'invalid'
+            ? 'Недействительный'
+            : 'В черном списке';
+        },
+
+
+        openImport() {
+          this.importFileObj = null;
+          this.importSuccess = false;
+          this.showImportModal = true;
+        },
+        closeImport() {
+          this.showImportModal = false;
+        },
+        handleFileChange(e) {
+          this.importFileObj = e.target.files?.[0] || e.dataTransfer.files?.[0] || null;
+        },
+        async importFile() {
+          if (!this.importFileObj || !this.selectedList) return;
+          this.isImporting = true;
+          const fd = new FormData();
+          fd.append('file', this.importFileObj);
+
+          const res = await fetch(`${API_BASE}${this.selectedList.id}/import/`, {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: { 'X-CSRFToken': getCSRFToken() },
+            body: fd
+          });
+
+          if (res.ok) {
+            this.importSuccess = true;
+            await this.viewList(this.selectedList);
+          } else {
+            console.error('Import failed', await res.text());
+          }
+          this.isImporting = false;
+        },
+
+        openRenameModal(list) {
+          this.renameListId   = list.id;
+          this.renameListName = list.name;
+          this.renameError    = '';
+          this.showRenameModal = true;
+        },
+
+        closeRenameModal() {
+          this.showRenameModal = false;
+          this.renameError     = '';
+        },
+
+        async submitRename() {
+          this.renameError = '';
+          const name = this.renameListName.trim();
+          if (!name) {
+            this.renameError = 'Название не может быть пустым';
+            return;
+          }
+          this.isRenaming = true;
+          try {
+            const url = `${API_BASE}${this.renameListId}/`;
+            const res = await fetch(url, {
+              method: 'PATCH',
+              credentials: 'same-origin',
+              headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': getCSRFToken(),
+              },
+              body: JSON.stringify({ name })
+            });
+            if (res.ok) {
+              // Обновляем списки и закрываем модалку
+              await this.fetchLists();
+              this.showRenameModal = false;
+            } else if (res.status === 400) {
+              const data = await res.json();
+              this.renameError = data.name?.[0] || 'Не удалось переименовать';
+            } else {
+              this.renameError = 'Ошибка сервера, попробуйте еще раз';
+            }
+          } catch (err) {
+            console.error(err);
+            this.renameError = 'Ошибка сети, попробуйте еще раз';
+          } finally {
+            this.isRenaming = false;
+          }
+        },
+
+        openAddModal() {
+          this.newManualEmail = '';
+          this.addError = '';
+          this.showAddModal = true;
+        },
+
+        async addManualContact() {
+          this.addError = '';
+
+          const email = this.newManualEmail.trim();
+          // 1) базовая валидация синтаксиса
+          if (!email || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) {
+            this.addError = 'Пожалуйста, введите действительный адрес электронной почты';
+            return;
+          }
+          if (!this.selectedList) {
+            this.addError = 'Список не выбран';
+            return;
+          }
+
+          this.isAdding = true;
+          try {
+            const url = `${API_BASE}${this.selectedList.id}/contacts/`;
+            const res = await fetch(url, {
+              method: 'POST',
+              credentials: 'same-origin',
+              headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': getCSRFToken(),
+              },
+              body: JSON.stringify({ email, status: 'valid' })
+            });
+
+            if (res.ok) {
+              await this.viewList(this.selectedList);
+              this.showAddModal = false;
+              this.newManualEmail = '';
+            } else if (res.status === 400) {
+              const data = await res.json();
+              this.addError = data.email?.[0] || 'Не удалось добавить контакт';
+            } else {
+              this.addError = 'Ошибка сервера, попробуйте еще раз';
+            }
+          } catch (err) {
+            console.error(err);
+            this.addError = 'Ошибка сети, попробуйте еще раз';
+          } finally {
+            this.isAdding = false;
+          }
+        },
+
+        closeExportModal() {
+          this.showExportModal = false;
+          this.selectedFormat = null;
+          this.exportTypes = {
+            valid: true,
+            invalid: false,
+            blacklist: false
+          };
+        },
+
+        hasSelectedExportTypes() {
+          return this.exportTypes.valid || this.exportTypes.invalid || this.exportTypes.blacklist;
+        },
+
+        async exportContacts() {
+          if (!this.selectedFormat || !this.hasSelectedExportTypes() || !this.selectedList) return;
+          
+          this.isExporting = true;
+          try {
+            const types = Object.entries(this.exportTypes)
+              .filter(([_, selected]) => selected)
+              .map(([type]) => type);
+
+            console.log('Exporting types:', types); // Debug log
+
+            const url = `${API_BASE}${this.selectedList.id}/export/`;
+            const res = await fetch(url, {
+              method: 'POST',
+              credentials: 'same-origin',
+              headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': getCSRFToken(),
+              },
+              body: JSON.stringify({
+                format: this.selectedFormat,
+                types: types
+              })
+            });
+
+            if (res.ok) {
+              const blob = await res.blob();
+              const downloadUrl = window.URL.createObjectURL(blob);
+              const a = document.createElement('a');
+              a.href = downloadUrl;
+              a.download = `contacts_${this.selectedList.name}_${new Date().toISOString().split('T')[0]}.zip`;
+              document.body.appendChild(a);
+              a.click();
+              window.URL.revokeObjectURL(downloadUrl);
+              document.body.removeChild(a);
+              this.closeExportModal();
+            } else {
+              const errorData = await res.json();
+              console.error('Export failed:', errorData);
+              alert('Ошибка при экспорте: ' + (errorData.error || 'Неизвестная ошибка'));
+            }
+          } catch (err) {
+            console.error('Export error:', err);
+            alert('Ошибка при экспорте: ' + err.message);
+          } finally {
+            this.isExporting = false;
+          }
+        },
+      }));
+    });
+  
+    function getCSRFToken() {
+      return document.cookie
+        .split(';')
+        .map(c => c.trim())
+        .find(c => c.startsWith('csrftoken='))
+        ?.split('=')[1] || '';
+    }
+  
+    function showToast(message, type = 'success') {
+      const toast = document.createElement('div');
+      toast.textContent = message;
+      toast.className = `fixed bottom-5 right-5 px-4 py-2 rounded-lg shadow-lg text-white text-sm z-[9999] ${
+        type === 'success' ? 'bg-green-600' : 'bg-red-600'
+      }`;
+      document.body.appendChild(toast);
+      setTimeout(() => toast.remove(), 3000);
+    }
+  </script>
+  
+  
+</body>
+</html>

@@ -1,0 +1,440 @@
+{# templates/account/login.html #}
+{% load wagtailcore_tags %}
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Вход в аккаунт - EmailCraft</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #F5F7FA;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .registration-container {
+            background: white;
+            border-radius: 16px;
+            box-shadow: 0 10px 40px rgba(45, 108, 223, 0.08);
+            padding: 40px;
+            width: 100%;
+            max-width: 450px;
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+
+        .registration-container:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 15px 50px rgba(45, 108, 223, 0.12);
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 32px;
+        }
+
+        .header h1 {
+            color: #2D6CDF;
+            font-size: 28px;
+            font-weight: 700;
+            margin-bottom: 8px;
+        }
+
+        .header p {
+            color: #6B7280;
+            font-size: 16px;
+            line-height: 1.5;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+            position: relative;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 6px;
+            color: #374151;
+            font-weight: 500;
+            font-size: 14px;
+        }
+
+        .input-wrapper {
+            position: relative;
+        }
+
+        .input-wrapper i {
+            position: absolute;
+            left: 16px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: #9CA3AF;
+            font-size: 16px;
+            transition: color 0.3s ease;
+        }
+
+        .form-control {
+            width: 100%;
+            padding: 14px 16px 14px 48px;
+            border: 2px solid #E5E7EB;
+            border-radius: 12px;
+            font-size: 16px;
+            transition: all 0.3s ease;
+            background-color: #FAFAFA;
+        }
+
+        .form-control:focus {
+            outline: none;
+            border-color: #2D6CDF;
+            background-color: white;
+            box-shadow: 0 0 0 3px rgba(45, 108, 223, 0.1);
+        }
+
+        .form-control:focus + i {
+            color: #2D6CDF;
+        }
+
+        .optional-label {
+            color: #9CA3AF;
+            font-size: 12px;
+            font-weight: normal;
+        }
+
+        .checkbox-group {
+            margin: 24px 0;
+            display: flex;
+            align-items: flex-start;
+            gap: 12px;
+        }
+
+        .checkbox-wrapper {
+            position: relative;
+            flex-shrink: 0;
+        }
+
+        .checkbox-wrapper input[type="checkbox"] {
+            appearance: none;
+            width: 20px;
+            height: 20px;
+            border: 2px solid #D1D5DB;
+            border-radius: 4px;
+            background-color: white;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .checkbox-wrapper input[type="checkbox"]:checked {
+            background-color: #2D6CDF;
+            border-color: #2D6CDF;
+        }
+
+        .checkbox-wrapper input[type="checkbox"]:checked::after {
+            content: '\f00c';
+            font-family: 'Font Awesome 6 Free';
+            font-weight: 900;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: white;
+            font-size: 12px;
+        }
+
+        .checkbox-label {
+            font-size: 14px;
+            color: #6B7280;
+            line-height: 1.5;
+            cursor: pointer;
+        }
+
+        .checkbox-label a {
+            color: #2D6CDF;
+            text-decoration: none;
+            font-weight: 500;
+            transition: color 0.3s ease;
+        }
+
+        .checkbox-label a:hover {
+            color: #1E40AF;
+            text-decoration: underline;
+        }
+
+        .btn-primary {
+            width: 100%;
+            padding: 16px;
+            background: linear-gradient(135deg, #2D6CDF 0%, #1E40AF 100%);
+            color: white;
+            border: none;
+            border-radius: 12px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .btn-primary:hover {
+            background: linear-gradient(135deg, #1E40AF 0%, #1E3A8A 100%);
+            transform: translateY(-1px);
+            box-shadow: 0 8px 25px rgba(45, 108, 223, 0.3);
+        }
+
+        .btn-primary:active {
+            transform: translateY(0);
+        }
+
+        .divider {
+            margin: 32px 0;
+            text-align: center;
+            position: relative;
+        }
+
+        .divider::before {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 0;
+            right: 0;
+            height: 1px;
+            background: #E5E7EB;
+            z-index: 1;
+        }
+
+        .divider span {
+            background: white;
+            padding: 0 16px;
+            color: #9CA3AF;
+            font-size: 14px;
+            position: relative;
+            z-index: 2;
+        }
+
+        .social-login {
+            display: flex;
+            gap: 12px;
+            margin-bottom: 24px;
+        }
+
+        .btn-social {
+            flex: 1;
+            padding: 12px;
+            border: 2px solid #E5E7EB;
+            border-radius: 10px;
+            background: white;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 20px;
+        }
+
+        .btn-google {
+            color: #DB4437;
+        }
+
+        .btn-facebook {
+            color: #4267B2;
+        }
+
+        .btn-social:hover {
+            border-color: #2D6CDF;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+        }
+
+        .login-link {
+            text-align: center;
+            margin-top: 24px;
+            font-size: 14px;
+            color: #6B7280;
+        }
+
+        .login-link a {
+            color: #2D6CDF;
+            text-decoration: none;
+            font-weight: 600;
+            transition: color 0.3s ease;
+        }
+
+        .login-link a:hover {
+            color: #FF7A00;
+        }
+
+        .accent-dot {
+            display: inline-block;
+            width: 6px;
+            height: 6px;
+            background: #FF7A00;
+            border-radius: 50%;
+            margin: 0 8px;
+        }
+
+        @media (max-width: 480px) {
+            .registration-container {
+                padding: 32px 24px;
+                margin: 10px;
+            }
+
+            .header h1 {
+                font-size: 24px;
+            }
+
+            .form-control {
+                padding: 12px 16px 12px 44px;
+            }
+
+            .btn-primary {
+                padding: 14px;
+                font-size: 15px;
+            }
+        }
+
+        .strength-indicator {
+            margin-top: 8px;
+            height: 4px;
+            background: #E5E7EB;
+            border-radius: 2px;
+            overflow: hidden;
+            transition: all 0.3s ease;
+        }
+
+        .strength-bar {
+            height: 100%;
+            transition: all 0.3s ease;
+            border-radius: 2px;
+        }
+
+        .strength-weak { background: #EF4444; width: 33%; }
+        .strength-medium { background: #F59E0B; width: 66%; }
+        .strength-strong { background: #10B981; width: 100%; }
+
+        .error-message {
+            color: #EF4444;
+            font-size: 12px;
+            margin-top: 4px;
+            display: none;
+        }
+
+        .success-message {
+            color: #10B981;
+            font-size: 12px;
+            margin-top: 4px;
+            display: none;
+        }
+    </style>
+    <style>
+      /* Стили аналогичны регистрации, опущены ради краткости */
+      .error-message { color: #EF4444; font-size: 12px; margin-top: 4px; display: none; }
+      .alert { color: #EF4444; margin-bottom: 16px; }
+    </style>
+</head>
+<body>
+<div class="registration-container">
+  <div class="header">
+    <h1>Вход в аккаунт</h1>
+    <p>Введите свои данные для входа</p>
+  </div>
+
+  {% if errors.non_field %}
+    <div class="alert">{{ errors.non_field }}</div>
+  {% endif %}
+
+  <form id="loginForm" action="{% url 'accounts:login' %}" method="post">
+    {% csrf_token %}
+
+    <div class="form-group">
+      <label for="email">Email *</label>
+      <div class="input-wrapper">
+        <i class="fas fa-envelope"></i>
+        <input type="email"
+               name="email"
+               id="email"
+               class="form-control"
+               placeholder="Введите свой email"
+               value="{{ data.email|default:'' }}"
+               required>
+      </div>
+      {% if errors.email %}
+        <div class="error-message" style="display:block;">{{ errors.email }}</div>
+      {% else %}
+        <div class="error-message" id="emailError">Введите корректный email</div>
+      {% endif %}
+    </div>
+
+    <div class="form-group">
+      <label for="password">Пароль *</label>
+      <div class="input-wrapper">
+        <i class="fas fa-lock"></i>
+        <input type="password"
+               name="password"
+               id="password"
+               class="form-control"
+               placeholder="Введите свой пароль"
+               required>
+      </div>
+      {% if errors.password %}
+        <div class="error-message" style="display:block;">{{ errors.password }}</div>
+      {% else %}
+        <div class="error-message" id="passwordError">Пароль не может быть пустым</div>
+      {% endif %}
+    </div>
+
+    <div class="checkbox-group">
+      <div class="checkbox-wrapper">
+        <input type="checkbox" name="remember" id="remember" {% if data.remember %}checked{% endif %}>
+      </div>
+      <label for="remember" class="checkbox-label">Запомнить меня</label>
+    </div>
+
+    <button type="submit" class="btn-primary">Войти</button>
+  </form>
+
+  <div class="login-link" style="margin-top:16px;">
+    <!-- <a href="">Забыли пароль?</a><br> -->
+    Нет аккаунта? <a href="{% url 'accounts:signup' %}">Зарегистрироваться</a>
+  </div>
+</div>
+
+<script>
+  (function() {
+    const form = document.getElementById('loginForm');
+    const email = document.getElementById('email');
+    const pwd   = document.getElementById('password');
+    const emailErr = document.getElementById('emailError');
+    const pwdErr   = document.getElementById('passwordError');
+
+    form.addEventListener('submit', e => {
+      e.preventDefault();
+      let valid = true;
+      emailErr.style.display = 'none';
+      pwdErr.style.display = 'none';
+
+      // Email check
+      const re = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!re.test(email.value.trim())) {
+        emailErr.style.display = 'block'; valid = false;
+      }
+      // Password non-empty
+      if (!pwd.value) {
+        pwdErr.style.display = 'block'; valid = false;
+      }
+      if (!valid) return;
+      form.submit();
+    });
+  })();
+</script>
+</body>
+</html>

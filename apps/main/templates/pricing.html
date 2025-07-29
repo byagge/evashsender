@@ -1,0 +1,549 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Тарифы — vashsender</title>
+  <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
+  <style>
+    body { font-family: 'Montserrat', Arial, sans-serif; }
+    .gradient-bg {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    }
+    .card-hover {
+      transition: all 0.3s ease;
+    }
+    .card-hover:hover {
+      transform: translateY(-8px);
+      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+    }
+    .feature-check {
+      background: linear-gradient(135deg, #4ade80 0%, #22c55e 100%);
+    }
+  </style>
+</head>
+<body class="bg-[#f5f6fa] text-[#222] min-h-screen">
+  <!-- Header -->
+  <header class="flex items-center justify-between px-6 md:px-20 pt-8">
+    <a href="/" class="flex items-center text-2xl font-bold text-[#222] no-underline">
+      <svg width="32" height="32" fill="none" class="mr-3" xmlns="http://www.w3.org/2000/svg">
+        <rect x="4" y="8" width="24" height="16" rx="4" fill="#1877ff"/>
+        <path d="M4 8l12 10L28 8" stroke="#fff" stroke-width="2"/>
+      </svg>
+      vashsender
+    </a>
+    <nav class="flex gap-8 items-center">
+      <a href="/login" class="text-[#222] font-medium text-base hover:text-[#1877ff] transition">Вход</a>
+      <a href="/register" class="bg-[#1877ff] hover:bg-[#125fd1] text-white font-bold rounded-md px-6 py-2 text-base transition">Регистрация</a>
+    </nav>
+  </header>
+
+  <!-- Hero Section -->
+  <section class="text-center py-16 px-6 md:px-20">
+    <h1 class="text-4xl md:text-6xl font-extrabold text-[#222a38] mb-6">
+      Выберите подходящий тариф
+    </h1>
+    <p class="text-xl text-[#6b7a99] max-w-3xl mx-auto mb-12">
+      Гибкие тарифы для любого бизнеса. Начните бесплатно и масштабируйтесь по мере роста
+    </p>
+  </section>
+
+  <!-- Pricing Cards -->
+  <section class="px-6 md:px-20 pb-20">
+    <div class="max-w-7xl mx-auto grid md:grid-cols-3 gap-8">
+      
+      <!-- Free Plan -->
+      <div class="bg-white rounded-2xl shadow-lg p-8 card-hover relative">
+        <div class="text-center mb-8">
+          <h3 class="text-2xl font-bold text-[#222a38] mb-2">Бесплатный</h3>
+          <div class="flex items-baseline justify-center mb-4">
+            <span class="text-4xl font-extrabold text-[#222a38]">₽0</span>
+            <span class="text-lg text-[#6b7a99] ml-2">/месяц</span>
+          </div>
+          <p class="text-[#6b7a99] mb-6">Идеально для начала работы с небольшими базами</p>
+          <button onclick="handleChoosePlan('free', true)" class="w-full bg-gray-100 hover:bg-gray-200 text-[#222a38] font-bold rounded-lg py-3 px-6 transition-colors block text-center">
+            Начать бесплатно
+          </button>
+        </div>
+        
+        <div class="space-y-4">
+          <div class="flex items-center">
+            <i class="fa-solid fa-check text-green-500 mr-3"></i>
+            <span class="text-[#222a38]">До 200 подписчиков</span>
+          </div>
+          <div class="flex items-center">
+            <i class="fa-solid fa-check text-green-500 mr-3"></i>
+            <span class="text-[#222a38]">Неограниченные письма</span>
+          </div>
+          <div class="flex items-center">
+            <i class="fa-solid fa-check text-green-500 mr-3"></i>
+            <span class="text-[#222a38]">Базовые шаблоны</span>
+          </div>
+          <div class="flex items-center">
+            <i class="fa-solid fa-check text-green-500 mr-3"></i>
+            <span class="text-[#222a38]">Email поддержка</span>
+          </div>
+          <div class="flex items-center">
+            <i class="fa-solid fa-check text-green-500 mr-3"></i>
+            <span class="text-[#222a38]">Базовая аналитика</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Subscribers Plan -->
+      <div class="bg-white rounded-2xl shadow-xl p-8 card-hover relative border-2 border-[#1877ff] transform scale-105">
+        <div class="absolute -top-4 left-1/2 transform -translate-x-1/2">
+          <span class="bg-[#1877ff] text-white px-4 py-1 rounded-full text-sm font-medium">Популярный</span>
+        </div>
+        
+        <div class="text-center mb-8">
+          <h3 class="text-2xl font-bold text-[#222a38] mb-2">Подписчики</h3>
+          <div class="flex items-baseline justify-center mb-4">
+            <span class="text-4xl font-extrabold text-[#222a38]">
+              <span id="subscribers-price">₽770</span>
+            </span>
+            <span class="text-lg text-[#6b7a99] ml-2">/месяц</span>
+          </div>
+          <p class="text-[#6b7a99] mb-6">Для растущего бизнеса с активными рассылками</p>
+          <button onclick="handleChoosePlan('subscribers', false)" class="w-full bg-[#1877ff] hover:bg-[#125fd1] text-white font-bold rounded-lg py-3 px-6 transition-colors block text-center">
+            Выбрать тариф
+          </button>
+        </div>
+        
+        <div class="space-y-4">
+          <div class="flex items-center">
+            <i class="fa-solid fa-check text-green-500 mr-3"></i>
+            <span class="text-[#222a38]">До <span id="subscribers-limit">1,000</span> подписчиков</span>
+          </div>
+          <div class="flex items-center">
+            <i class="fa-solid fa-check text-green-500 mr-3"></i>
+            <span class="text-[#222a38]">Неограниченные письма</span>
+          </div>
+          <div class="flex items-center">
+            <i class="fa-solid fa-check text-green-500 mr-3"></i>
+            <span class="text-[#222a38]">Продвинутые шаблоны</span>
+          </div>
+          <div class="flex items-center">
+            <i class="fa-solid fa-check text-green-500 mr-3"></i>
+            <span class="text-[#222a38]">Приоритетная поддержка</span>
+          </div>
+          <div class="flex items-center">
+            <i class="fa-solid fa-check text-green-500 mr-3"></i>
+            <span class="text-[#222a38]">Детальная аналитика</span>
+          </div>
+          <div class="flex items-center">
+            <i class="fa-solid fa-check text-green-500 mr-3"></i>
+            <span class="text-[#222a38]">A/B тестирование</span>
+          </div>
+          <div class="flex items-center">
+            <i class="fa-solid fa-check text-green-500 mr-3"></i>
+            <span class="text-[#222a38]">API доступ</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Letters Plan -->
+      <div class="bg-white rounded-2xl shadow-lg p-8 card-hover relative">
+        <div class="text-center mb-8">
+          <h3 class="text-2xl font-bold text-[#222a38] mb-2">Письма</h3>
+          <div class="flex items-baseline justify-center mb-4">
+            <span class="text-4xl font-extrabold text-[#222a38]">
+              <span id="letters-price">₽430</span>
+            </span>
+            <span class="text-lg text-[#6b7a99] ml-2">/пакет</span>
+          </div>
+          <p class="text-[#6b7a99] mb-6">Для нерегулярных рассылок без ограничений по подписчикам</p>
+          <button onclick="handleChoosePlan('letters', false)" class="w-full bg-gray-100 hover:bg-gray-200 text-[#222a38] font-bold rounded-lg py-3 px-6 transition-colors block text-center">
+            Выбрать тариф
+          </button>
+        </div>
+        
+        <div class="space-y-4">
+          <div class="flex items-center">
+            <i class="fa-solid fa-check text-green-500 mr-3"></i>
+            <span class="text-[#222a38]">Неограниченные подписчики</span>
+          </div>
+          <div class="flex items-center">
+            <i class="fa-solid fa-check text-green-500 mr-3"></i>
+            <span class="text-[#222a38]"><span id="letters-limit">1,000</span> писем в пакете</span>
+          </div>
+          <div class="flex items-center">
+            <i class="fa-solid fa-check text-green-500 mr-3"></i>
+            <span class="text-[#222a38]">Продвинутые шаблоны</span>
+          </div>
+          <div class="flex items-center">
+            <i class="fa-solid fa-check text-green-500 mr-3"></i>
+            <span class="text-[#222a38]">Email поддержка</span>
+          </div>
+          <div class="flex items-center">
+            <i class="fa-solid fa-check text-green-500 mr-3"></i>
+            <span class="text-[#222a38]">Детальная аналитика</span>
+          </div>
+          <div class="flex items-center">
+            <i class="fa-solid fa-check text-green-500 mr-3"></i>
+            <span class="text-[#222a38]">Без срока действия</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Subscribers Slider -->
+  <section class="px-6 md:px-20 pb-20">
+    <div class="max-w-4xl mx-auto bg-white rounded-2xl shadow-lg p-8">
+      <h3 class="text-2xl font-bold text-[#222a38] text-center mb-8">Настройте количество подписчиков</h3>
+      
+      <div class="mb-8">
+        <label for="subscribers-slider" class="block text-sm font-medium text-[#6b7a99] mb-4">
+          Количество подписчиков: <span id="slider-value">1,000</span>
+        </label>
+        <input 
+          type="range" 
+          id="subscribers-slider" 
+          min="1000" 
+          max="10000" 
+          step="1000" 
+          value="1000"
+          class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer slider"
+        >
+        <div class="flex justify-between text-xs text-[#6b7a99] mt-2">
+          <span>1,000</span>
+          <span>5,000</span>
+          <span>10,000</span>
+        </div>
+      </div>
+
+      <div class="text-center p-6 bg-gray-50 rounded-lg">
+        <h4 class="text-lg font-semibold text-[#222a38] mb-2">Тариф "Подписчики"</h4>
+        <div class="text-3xl font-bold text-[#1877ff] mb-2">
+          <span id="subscribers-price-slider">₽770</span>
+        </div>
+        <p class="text-[#6b7a99]">в месяц</p>
+        <button onclick="handleChoosePlan('subscribers', false)" class="mt-4 bg-[#1877ff] hover:bg-[#125fd1] text-white font-bold py-2 px-6 rounded-lg transition-colors">
+          Выбрать этот тариф
+        </button>
+      </div>
+    </div>
+  </section>
+
+  <!-- Letters Slider -->
+  <section class="px-6 md:px-20 pb-20">
+    <div class="max-w-4xl mx-auto bg-white rounded-2xl shadow-lg p-8">
+      <h3 class="text-2xl font-bold text-[#222a38] text-center mb-8">Настройте количество писем</h3>
+      
+      <div class="mb-8">
+        <label for="letters-slider" class="block text-sm font-medium text-[#6b7a99] mb-4">
+          Количество писем: <span id="letters-slider-value">1,000</span>
+        </label>
+        <input 
+          type="range" 
+          id="letters-slider" 
+          min="1000" 
+          max="10000" 
+          step="1000" 
+          value="1000"
+          class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer slider"
+        >
+        <div class="flex justify-between text-xs text-[#6b7a99] mt-2">
+          <span>1,000</span>
+          <span>5,000</span>
+          <span>10,000</span>
+        </div>
+      </div>
+
+      <div class="text-center p-6 bg-gray-50 rounded-lg">
+        <h4 class="text-lg font-semibold text-[#222a38] mb-2">Тариф "Письма"</h4>
+        <div class="text-3xl font-bold text-[#1877ff] mb-2">
+          <span id="letters-price-slider">₽430</span>
+        </div>
+        <p class="text-[#6b7a99]">за пакет</p>
+        <button onclick="handleChoosePlan('letters', false)" class="mt-4 bg-[#1877ff] hover:bg-[#125fd1] text-white font-bold py-2 px-6 rounded-lg transition-colors">
+          Выбрать этот тариф
+        </button>
+      </div>
+    </div>
+  </section>
+
+  <!-- FAQ Section -->
+  <section class="px-6 md:px-20 pb-20">
+    <div class="max-w-4xl mx-auto">
+      <h2 class="text-3xl font-bold text-[#222a38] text-center mb-12">Часто задаваемые вопросы</h2>
+      
+      <div class="space-y-6">
+        <div class="bg-white rounded-lg shadow-sm border border-gray-200">
+          <button class="w-full px-6 py-4 text-left flex justify-between items-center" onclick="toggleFAQ(this)">
+            <span class="font-medium text-[#222a38]">Могу ли я изменить тариф в любое время?</span>
+            <i class="fa-solid fa-chevron-down text-[#6b7a99] transition-transform"></i>
+          </button>
+          <div class="px-6 pb-4 hidden">
+            <p class="text-[#6b7a99]">Да, вы можете изменить тариф в любое время. При переходе на более дорогой план изменения вступят в силу немедленно, при переходе на более дешевый — в следующем месяце.</p>
+          </div>
+        </div>
+        
+        <div class="bg-white rounded-lg shadow-sm border border-gray-200">
+          <button class="w-full px-6 py-4 text-left flex justify-between items-center" onclick="toggleFAQ(this)">
+            <span class="font-medium text-[#222a38]">Что происходит при превышении лимита подписчиков?</span>
+            <i class="fa-solid fa-chevron-down text-[#6b7a99] transition-transform"></i>
+          </button>
+          <div class="px-6 pb-4 hidden">
+            <p class="text-[#6b7a99]">При превышении лимита мы уведомим вас и предложим перейти на следующий тариф. Рассылки будут приостановлены до обновления тарифа.</p>
+          </div>
+        </div>
+        
+        <div class="bg-white rounded-lg shadow-sm border border-gray-200">
+          <button class="w-full px-6 py-4 text-left flex justify-between items-center" onclick="toggleFAQ(this)">
+            <span class="font-medium text-[#222a38]">Есть ли ограничения на количество писем в тарифе "Подписчики"?</span>
+            <i class="fa-solid fa-chevron-down text-[#6b7a99] transition-transform"></i>
+          </button>
+          <div class="px-6 pb-4 hidden">
+            <p class="text-[#6b7a99]">В тарифе "Подписчики" количество писем неограниченно. Ограничения касаются только количества подписчиков в базе.</p>
+          </div>
+        </div>
+        
+        <div class="bg-white rounded-lg shadow-sm border border-gray-200">
+          <button class="w-full px-6 py-4 text-left flex justify-between items-center" onclick="toggleFAQ(this)">
+            <span class="font-medium text-[#222a38]">Как работает тариф "Письма"?</span>
+            <i class="fa-solid fa-chevron-down text-[#6b7a99] transition-transform"></i>
+          </button>
+          <div class="px-6 pb-4 hidden">
+            <p class="text-[#6b7a99]">Тариф "Письма" подходит для нерегулярных рассылок. Вы покупаете пакет писем без ограничений по количеству подписчиков. Пакет не имеет срока действия.</p>
+          </div>
+        </div>
+        
+        <div class="bg-white rounded-lg shadow-sm border border-gray-200">
+          <button class="w-full px-6 py-4 text-left flex justify-between items-center" onclick="toggleFAQ(this)">
+            <span class="font-medium text-[#222a38]">Можно ли отменить подписку?</span>
+            <i class="fa-solid fa-chevron-down text-[#6b7a99] transition-transform"></i>
+          </button>
+          <div class="px-6 pb-4 hidden">
+            <p class="text-[#6b7a99]">Да, вы можете отменить подписку в любое время. После отмены вы сможете пользоваться сервисом до конца оплаченного периода.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- CTA Section -->
+  <section class="gradient-bg text-white py-20 px-6 md:px-20">
+    <div class="max-w-4xl mx-auto text-center">
+      <h2 class="text-4xl font-bold mb-6">Готовы начать?</h2>
+      <p class="text-xl mb-8 opacity-90">Присоединяйтесь к тысячам компаний, которые уже используют vashsender для своих email-рассылок</p>
+      <div class="flex flex-col sm:flex-row gap-4 justify-center">
+        <a href="/register" class="bg-white text-[#1877ff] font-bold py-4 px-8 rounded-lg hover:bg-gray-100 transition-colors">
+          Начать бесплатно
+        </a>
+        <a href="/contact" class="border-2 border-white text-white font-bold py-4 px-8 rounded-lg hover:bg-white hover:text-[#1877ff] transition-colors">
+          Связаться с нами
+        </a>
+      </div>
+    </div>
+  </section>
+
+  <!-- Footer -->
+  <footer class="bg-white pt-12 pb-6 border-t border-gray-100">
+    <div class="max-w-7xl mx-auto px-4 flex flex-col md:flex-row md:justify-between md:items-start gap-10">
+      <!-- Логотип и контакты -->
+      <div class="flex flex-col items-center md:items-start mb-8 md:mb-0 min-w-[220px]">
+        <div class="flex items-center mb-4">
+          <i class="fa-regular fa-envelope text-[#1877ff] text-3xl mr-2"></i>
+          <span class="text-2xl font-bold text-[#222a38]">vashsender</span>
+        </div>
+        <div class="text-[#222a38] font-bold text-lg mb-1">8 (800) 000-00-00</div>
+        <div class="text-[#6b7a99] text-base mb-1">support@vashsender</div>
+      </div>
+      <!-- Юр. информация -->
+      <div class="flex flex-col items-center md:items-start">
+        <div class="font-bold text-[#222a38] mb-2">Юридическая информация</div>
+        <a href="#" class="text-[#6b7a99] hover:text-[#1877ff] mb-1">АнтиСпам соглашение</a>
+        <a href="#" class="text-[#6b7a99] hover:text-[#1877ff] mb-1">Политика конфиденциальности</a>
+        <a href="#" class="text-[#6b7a99] hover:text-[#1877ff] mb-1">Политика возвратов</a>
+        <a href="#" class="text-[#6b7a99] hover:text-[#1877ff]">Лицензионное соглашение</a>
+      </div>
+      <!-- Дополнительно -->
+      <div class="flex flex-col items-center md:items-start">
+        <div class="font-bold text-[#222a38] mb-2">Дополнительно</div>
+        <a href="#" class="text-[#6b7a99] hover:text-[#1877ff] mb-1">Партнерская программа</a>
+        <a href="#" class="text-[#6b7a99] hover:text-[#1877ff] mb-1">Блог</a>
+        <a href="#" class="text-[#6b7a99] hover:text-[#1877ff] mb-1">Интеграция</a>
+        <a href="#" class="text-[#6b7a99] hover:text-[#1877ff]">Тарифы</a>
+      </div>
+      <!-- Другие сервисы -->
+      <div class="flex flex-col items-center md:items-start">
+        <div class="font-bold text-[#222a38] mb-2">Другие наши сервисы</div>
+        <a href="#" class="text-[#6b7a99] hover:text-[#1877ff] mb-1">СМС рассылки</a>
+        <a href="#" class="text-[#6b7a99] hover:text-[#1877ff] mb-1">Автообзвон</a>
+        <a href="#" class="text-[#6b7a99] hover:text-[#1877ff]">Идентификация посетителей</a>
+      </div>
+    </div>
+    <div class="max-w-7xl mx-auto mt-8 mb-4 border-t border-gray-100"></div>
+    <div class="max-w-7xl mx-auto px-4 flex flex-col md:flex-row md:justify-between items-center text-sm text-[#6b7a99]">
+      <div class="flex items-center gap-4 mb-2 md:mb-0">
+        <span>© 2017 - 2025 ООО "vashsender" ИНН 0000 ОГРН 0000 </span>
+        <div class="flex items-center gap-2">
+          <img src="https://upload.wikimedia.org/wikipedia/commons/4/41/Visa_Logo.png" alt="Visa" class="h-6" />
+          <img src="https://upload.wikimedia.org/wikipedia/commons/0/04/Mastercard-logo.png" alt="Mastercard" class="h-6" />
+          <img src="https://upload.wikimedia.org/wikipedia/commons/2/2a/Mir-logo.svg" alt="МИР" class="h-6" />
+          <img src="https://upload.wikimedia.org/wikipedia/commons/6/6a/SBP_logo.svg" alt="СБП" class="h-6" />
+        </div>
+      </div>
+      <div class="flex items-center gap-1">
+        <span>Сделано с</span>
+        <i class="fa-solid fa-heart text-red-500"></i>
+        <span>любовью и страстью</span>
+      </div>
+    </div>
+  </footer>
+
+  <script>
+    // Глобальная переменная для статуса авторизации
+    let isAuthenticated = false;
+    let currentPlanId = null;
+
+    // Проверка статуса авторизации при загрузке страницы
+    async function checkAuthStatus() {
+      try {
+        const response = await fetch('/billing/check-auth/');
+        const data = await response.json();
+        isAuthenticated = data.is_authenticated;
+        console.log('Auth status:', isAuthenticated);
+      } catch (error) {
+        console.error('Error checking auth status:', error);
+        isAuthenticated = false;
+      }
+    }
+
+    // Функция выбора тарифа
+    function handleChoosePlan(planType, isFree) {
+      if (!isAuthenticated) {
+        // Если не авторизован - редирект на страницу входа
+        window.location.href = `/accounts/login?next=/pricing/`;
+        return;
+      }
+
+      if (isFree) {
+        // Бесплатный тариф - активируем сразу
+        window.location.href = '/billing/activate-free/';
+        return;
+      }
+
+      // Платный тариф - определяем ID тарифа по типу и текущим значениям слайдеров
+      let planId = null;
+      
+      if (planType === 'subscribers') {
+        const subscribersCount = parseInt(document.getElementById('subscribers-slider').value);
+        if (subscribersCount <= 1000) {
+          planId = 2;
+        } else if (subscribersCount <= 5000) {
+          planId = 3;
+        } else {
+          planId = 4;
+        }
+      } else if (planType === 'letters') {
+        const lettersCount = parseInt(document.getElementById('letters-slider').value);
+        if (lettersCount <= 1000) {
+          planId = 5;
+        } else if (lettersCount <= 5000) {
+          planId = 6;
+        } else {
+          planId = 7;
+        }
+      }
+
+      if (planId) {
+        window.location.href = `/purchase/confirm/?plan_id=${planId}`;
+      } else {
+        alert('Ошибка: не удалось определить тариф');
+      }
+    }
+
+    // Pricing data with interpolation
+    const pricing = {
+      subscribers: { 1000: 770, 5000: 2900, 10000: 4900 },
+      letters: { 1000: 430, 5000: 1500, 10000: 2500 }
+    };
+
+    // Function to interpolate price between known values
+    function interpolatePrice(value, priceMap) {
+      const keys = Object.keys(priceMap).map(Number).sort((a, b) => a - b);
+      
+      // If exact match, return that price
+      if (priceMap[value]) {
+        return priceMap[value];
+      }
+      
+      // Find the two closest values
+      let lower = keys[0];
+      let upper = keys[keys.length - 1];
+      
+      for (let i = 0; i < keys.length - 1; i++) {
+        if (value >= keys[i] && value <= keys[i + 1]) {
+          lower = keys[i];
+          upper = keys[i + 1];
+          break;
+        }
+      }
+      
+      // Interpolate between the two values
+      const lowerPrice = priceMap[lower];
+      const upperPrice = priceMap[upper];
+      const ratio = (value - lower) / (upper - lower);
+      
+      return Math.round(lowerPrice + (upperPrice - lowerPrice) * ratio);
+    }
+
+    // Subscribers slider functionality
+    const subscribersSlider = document.getElementById('subscribers-slider');
+    const subscribersSliderValue = document.getElementById('slider-value');
+    const subscribersPrice = document.getElementById('subscribers-price');
+    const subscribersPriceSlider = document.getElementById('subscribers-price-slider');
+    const subscribersLimit = document.getElementById('subscribers-limit');
+
+    function updateSubscribers() {
+      const value = parseInt(subscribersSlider.value);
+      subscribersSliderValue.textContent = value.toLocaleString();
+      subscribersLimit.textContent = value.toLocaleString();
+      const price = interpolatePrice(value, pricing.subscribers);
+      subscribersPrice.textContent = `₽${price}`;
+      subscribersPriceSlider.textContent = `₽${price}`;
+    }
+
+    // Letters slider functionality
+    const lettersSlider = document.getElementById('letters-slider');
+    const lettersSliderValue = document.getElementById('letters-slider-value');
+    const lettersPrice = document.getElementById('letters-price');
+    const lettersPriceSlider = document.getElementById('letters-price-slider');
+    const lettersLimit = document.getElementById('letters-limit');
+
+    function updateLetters() {
+      const value = parseInt(lettersSlider.value);
+      lettersSliderValue.textContent = value.toLocaleString();
+      lettersLimit.textContent = value.toLocaleString();
+      const price = interpolatePrice(value, pricing.letters);
+      lettersPrice.textContent = `₽${price}`;
+      lettersPriceSlider.textContent = `₽${price}`;
+    }
+
+    // FAQ functionality
+    function toggleFAQ(button) {
+      const content = button.nextElementSibling;
+      const icon = button.querySelector('i');
+      
+      content.classList.toggle('hidden');
+      icon.style.transform = content.classList.contains('hidden') ? 'rotate(0deg)' : 'rotate(180deg)';
+    }
+
+    // Initialize
+    document.addEventListener('DOMContentLoaded', function() {
+      checkAuthStatus();
+      updateSubscribers();
+      updateLetters();
+    });
+
+    // Event listeners
+    subscribersSlider.addEventListener('input', updateSubscribers);
+    lettersSlider.addEventListener('input', updateLetters);
+  </script>
+</body>
+</html> 

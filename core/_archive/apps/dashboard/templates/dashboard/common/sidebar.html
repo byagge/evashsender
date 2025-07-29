@@ -1,0 +1,120 @@
+<aside class="fixed inset-y-0 left-0 w-64 bg-white border-r border-gray-200 shadow-sm hidden md:flex flex-col z-50">
+    <!-- Фоновые паттерны -->
+    <div class="sidebar-pattern"></div>
+    <div class="relative z-10 flex flex-col h-full">
+        <!-- Логотип / Бренд -->
+        <div class="p-6 pb-4">
+            <div class="flex items-center space-x-3">
+                <div class="w-8 h-8 bg-gradient-to-br from-blue-500 to-blue-600 rounded-lg flex items-center justify-center shadow-lg">
+                    <i data-lucide="mail" class="w-4 h-4 text-white"></i>
+                </div>
+                <h2 class="text-xl font-bold text-gray-800">Mail</h2>
+            </div>
+        </div>
+        <!-- Навигация -->
+        <nav class="flex-1 px-3 py-6 space-y-1">
+            <a href="/dashboard/" class="group flex items-center px-3 py-3 rounded-xl transition-all duration-200 hover:bg-blue-50 hover:scale-[1.02]">
+                <div class="flex items-center justify-center w-8 h-8 rounded-lg mr-3 bg-blue-100">
+                    <i data-lucide="layout-dashboard" class="w-4 h-4 text-blue-600"></i>
+                </div>
+                <span class="font-medium text-blue-700">Дашборд</span>
+                <div class="ml-auto">
+                    <i data-lucide="chevron-right" class="w-4 h-4 text-blue-500"></i>
+                </div>
+            </a>
+            <a href="/lists/" class="group flex items-center px-3 py-3 rounded-xl transition-all duration-200 hover:bg-blue-50 hover:scale-[1.02]">
+                <div class="flex items-center justify-center w-8 h-8 rounded-lg mr-3 group-hover:bg-blue-100 transition-colors duration-200">
+                    <i data-lucide="users" class="w-4 h-4 text-gray-500 group-hover:text-blue-600"></i>
+                </div>
+                <span class="font-medium text-gray-700 group-hover:text-blue-700 transition-colors duration-200">Контакты</span>
+                <div class="ml-auto opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                    <i data-lucide="chevron-right" class="w-4 h-4 text-blue-500"></i>
+                </div>
+            </a>
+            <a href="/templates/" class="group flex items-center px-3 py-3 rounded-xl transition-all duration-200 hover:bg-blue-50 hover:scale-[1.02]">
+                <div class="flex items-center justify-center w-8 h-8 rounded-lg mr-3 group-hover:bg-blue-100 transition-colors duration-200">
+                    <i data-lucide="layout" class="w-4 h-4 text-gray-500 group-hover:text-blue-600"></i>
+                </div>
+                <span class="font-medium text-gray-700 group-hover:text-blue-700 transition-colors duration-200">Шаблоны</span>
+                <div class="ml-auto opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                    <i data-lucide="chevron-right" class="w-4 h-4 text-blue-500"></i>
+                </div>
+            </a>
+            <!-- <a href="/emails/" class="group flex items-center px-3 py-3 rounded-xl transition-all duration-200 hover:bg-blue-50 hover:scale-[1.02]">
+                <div class="flex items-center justify-center w-8 h-8 rounded-lg mr-3 group-hover:bg-blue-100 transition-colors duration-200">
+                    <i data-lucide="mail" class="w-4 h-4 text-gray-500 group-hover:text-blue-600"></i>
+                </div>
+                <span class="font-medium text-gray-700 group-hover:text-blue-700 transition-colors duration-200">Почты</span>
+                <div class="ml-auto opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                    <i data-lucide="chevron-right" class="w-4 h-4 text-blue-500"></i>
+                </div>
+            </a> -->
+            <a href="/campaigns/" class="group flex items-center px-3 py-3 rounded-xl transition-all duration-200 hover:bg-blue-50 hover:scale-[1.02]">
+                <div class="flex items-center justify-center w-8 h-8 rounded-lg mr-3 group-hover:bg-blue-100 transition-colors duration-200">
+                    <i data-lucide="send" class="w-4 h-4 text-gray-500 group-hover:text-blue-600"></i>
+                </div>
+                <span class="font-medium text-gray-700 group-hover:text-blue-700 transition-colors duration-200">Рассылки</span>
+                <div class="ml-auto opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                    <i data-lucide="chevron-right" class="w-4 h-4 text-blue-500"></i>
+                </div>
+            </a>
+            <div class="h-px bg-gradient-to-r from-transparent via-gray-200 to-transparent my-4"></div>
+            <a href="/accounts/settings/" class="group flex items-center px-3 py-3 rounded-xl transition-all duration-200 hover:bg-blue-50 hover:scale-[1.02]">
+                <div class="flex items-center justify-center w-8 h-8 rounded-lg mr-3 group-hover:bg-blue-100 transition-colors duration-200">
+                    <i data-lucide="settings" class="w-4 h-4 text-gray-500 group-hover:text-blue-600"></i>
+                </div>
+                <span class="font-medium text-gray-700 group-hover:text-blue-700 transition-colors duration-200">Настройки</span>
+                <div class="ml-auto opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                    <i data-lucide="chevron-right" class="w-4 h-4 text-blue-500"></i>
+                </div>
+            </a>
+            <a href="#" class="group flex items-center px-3 py-3 rounded-xl transition-all duration-200 hover:bg-blue-50 hover:scale-[1.02]">
+                <div class="flex items-center justify-center w-8 h-8 rounded-lg mr-3 group-hover:bg-blue-100 transition-colors duration-200">
+                    <i data-lucide="help-circle" class="w-4 h-4 text-gray-500 group-hover:text-blue-600"></i>
+                </div>
+                <span class="font-medium text-gray-700 group-hover:text-blue-700 transition-colors duration-200">Помощь</span>
+                <div class="ml-auto opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                    <i data-lucide="chevron-right" class="w-4 h-4 text-blue-500"></i>
+                </div>
+            </a>
+            <!-- Админ-панель (только для админов) -->
+            <template x-if="isAdmin">
+                <div class="space-y-1">
+                    <a href="/admin/" class="group flex items-center px-3 py-3 rounded-xl transition-all duration-200 hover:bg-blue-50 hover:scale-[1.02]">
+                        <div class="flex items-center justify-center w-8 h-8 rounded-lg mr-3 group-hover:bg-blue-100 transition-colors duration-200">
+                            <i data-lucide="shield" class="w-4 h-4 text-gray-500 group-hover:text-blue-600"></i>
+                        </div>
+                        <span class="font-medium text-gray-700 group-hover:text-blue-700 transition-colors duration-200">CMS</span>
+                        <div class="ml-auto opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                            <i data-lucide="chevron-right" class="w-4 h-4 text-blue-500"></i>
+                        </div>
+                    </a>
+                    <a href="/django-admin/" class="group flex items-center px-3 py-3 rounded-xl transition-all duration-200 hover:bg-blue-50 hover:scale-[1.02]">
+                        <div class="flex items-center justify-center w-8 h-8 rounded-lg mr-3 group-hover:bg-blue-100 transition-colors duration-200">
+                            <i data-lucide="settings-2" class="w-4 h-4 text-gray-500 group-hover:text-blue-600"></i>
+                        </div>
+                        <span class="font-medium text-gray-700 group-hover:text-blue-700 transition-colors duration-200">Админ-панель</span>
+                        <div class="ml-auto opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                            <i data-lucide="chevron-right" class="w-4 h-4 text-blue-500"></i>
+                        </div>
+                    </a>
+                </div>
+            </template>
+        </nav>
+        <!-- Профиль пользователя -->
+        <div class="mt-auto p-4 border-t border-gray-200 bg-gray-50/50">
+            <div class="flex items-center space-x-3 px-3 py-2 rounded-xl hover:bg-white/80 transition-all duration-200 cursor-pointer group">
+                <div class="w-10 h-10 bg-gradient-to-br from-blue-500 to-blue-600 rounded-full flex items-center justify-center shadow-md">
+                    <span class="text-white font-medium text-sm">АП</span>
+                </div>
+                <div class="flex-1 min-w-0">
+                    <p class="text-gray-800 font-medium text-sm truncate">Окулов Павел Миронович</p>
+                    <p class="text-gray-500 text-xs truncate">pavel@company.com</p>
+                </div>
+                <button class="opacity-60 group-hover:opacity-100 transition-opacity duration-200">
+                    <i data-lucide="more-horizontal" class="w-4 h-4 text-gray-500"></i>
+                </button>
+            </div>
+        </div>
+    </div>
+</aside> 

@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>vashsender — Российский сервис email рассылки</title>
+  <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;700&display=swap" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
+  <style>
+    body { font-family: 'Montserrat', Arial, sans-serif; }
+  </style>
+</head>
+<body class="bg-[#f5f6fa] text-[#222] min-h-screen">
+  <!-- Header -->
+  <header class="flex items-center justify-between px-6 md:px-20 pt-8">
+    <a href="/" class="flex items-center text-2xl font-bold text-[#222] no-underline">
+      <svg width="32" height="32" fill="none" class="mr-3" xmlns="http://www.w3.org/2000/svg"><rect x="4" y="8" width="24" height="16" rx="4" fill="#1877ff"/><path d="M4 8l12 10L28 8" stroke="#fff" stroke-width="2"/></svg>
+      vashsender
+    </a>
+    <nav class="flex gap-8 items-center">
+      <a href="/login" class="text-[#222] font-medium text-base hover:text-[#1877ff] transition">Вход</a>
+      <a href="/register" class="bg-[#1877ff] hover:bg-[#125fd1] text-white font-bold rounded-md px-6 py-2 text-base transition">Регистрация</a>
+    </nav>
+  </header>
+  <!-- Hero Section -->
+  <section class="flex flex-col md:flex-row items-center justify-between px-6 md:px-20 pt-12 pb-8 md:pb-0 min-h-[80vh]">
+    <!-- Left -->
+    <div class="flex-1 flex flex-col items-start md:items-start gap-8">
+      <h1 class="text-4xl md:text-6xl font-extrabold text-[#222a38] leading-tight">
+        РОССИЙСКИЙ<br>СЕРВИС EMAIL<br>РАССЫЛКИ
+      </h1>
+      <p class="text-lg text-[#6b7a99] max-w-xl">
+        Вы сможете легко делать e-mail рассылки, создавать шаблоны и оформлять письма, вести статистику доставки. Попробуйте бесплатно, чтобы оценить эффективность и качество доставки!
+      </p>
+      <a href="/register" class="bg-[#1877ff] hover:bg-[#125fd1] text-white font-bold rounded-lg px-10 py-4 text-lg transition mb-2">
+        Попробовать бесплатно
+      </a>
+      <div class="flex items-center gap-2 text-[#6b7a99] text-base">
+        <i class="fa-solid fa-circle-check text-[#1877ff] text-lg"></i>
+        200 подписчиков и неограниченное количество писем
+      </div>
+    </div>
+    <!-- Right -->
+    <div class="flex-1 flex items-center justify-center mt-12 md:mt-0 relative">
+      <img src="https://mailopost.ru/images/hero-2-img.webp" alt="hero" class="rounded-3xl shadow-2xl w-[480px] max-w-full">
+      <!-- Декоративные элементы можно добавить здесь, если нужно -->
+    </div>
+  </section>
+  <!-- Tariffs Section -->
+<section class="py-16 px-4 md:px-0 flex flex-col items-center bg-[#f7f8fa]">
+  <h2 class="text-3xl md:text-5xl font-extrabold text-[#222a38] text-center mb-4">Тарифы</h2>
+  <div class="flex items-center justify-center gap-4 mb-2">
+    <span class="text-base font-medium text-[#222a38]">Месяц</span>
+    <label class="relative inline-flex items-center cursor-pointer">
+      <input id="toggle-period" type="checkbox" class="sr-only peer">
+      <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:bg-blue-600 transition"></div>
+      <div class="absolute left-1 top-1 bg-white w-4 h-4 rounded-full transition peer-checked:translate-x-5"></div>
+    </label>
+    <span class="text-base font-medium text-[#222a38]">Год</span>
+  </div>
+  <div id="discount-label" class="text-[#1877ff] text-sm mb-8 block">
+    Скидка 30% на тариф "Подписчики" при оплате на год
+  </div>
+  <div class="w-full max-w-6xl flex flex-col md:flex-row gap-8 justify-center">
+    <!-- Тариф 1 -->
+    <div class="flex-1 bg-white rounded-2xl shadow-lg p-8 flex flex-col items-start">
+      <div class="text-xl font-bold text-[#222a38] mb-2">СТАРТОВЫЙ</div>
+      <div class="flex items-end mb-2">
+        <span class="text-2xl font-bold text-[#222a38] mr-1">₽</span>
+        <span id="price-free" class="text-4xl font-extrabold text-[#222a38]">0</span>
+        <span id="period-free" class="text-lg text-[#6b7a99] ml-2">/ всегда</span>
+      </div>
+      <div class="text-[#6b7a99] text-base mb-6">
+        Маленькая база? Пользуйтесь сервисом бесплатно всегда, если в ней до 200 подписчиков. Доступен полный функционал программы, как и на платных тарифах.
+      </div>
+      <a href="/register" class="mt-auto w-full bg-[#1877ff] hover:bg-[#125fd1] text-white font-bold rounded-lg py-3 text-center transition">Попробовать бесплатно</a>
+    </div>
+    <!-- Тариф 2 -->
+    <div class="flex-1 bg-white rounded-2xl shadow-lg p-8 flex flex-col items-start">
+      <div class="text-xl font-bold text-[#222a38] mb-2">ПОДПИСЧИКИ</div>
+      <div class="flex items-end mb-2">
+        <span class="text-2xl font-bold text-[#222a38] mr-1">₽</span>
+        <span id="price-subs" class="text-4xl font-extrabold text-[#222a38]">770</span>
+        <span id="period-subs" class="text-lg text-[#6b7a99] ml-2">/ месяц</span>
+      </div>
+      <label class="w-full mb-4">
+        <span class="block text-[#6b7a99] text-sm mb-1">Количество подписчиков</span>
+        <select id="subs-count" class="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#1877ff]">
+          <option value="1000">1 000</option>
+          <option value="5000">5 000</option>
+          <option value="10000">10 000</option>
+        </select>
+      </label>
+      <div class="text-[#6b7a99] text-base mb-6">
+        Выберите нужное количество подписчиков и делайте им рассылки без ограничений в течение месяца.
+      </div>
+      <a href="/pricing/" class="mt-auto w-full bg-[#1877ff] hover:bg-[#125fd1] text-white font-bold rounded-lg py-3 text-center transition">Подключить тариф</a>
+    </div>
+    <!-- Тариф 3 -->
+    <div class="flex-1 bg-white rounded-2xl shadow-lg p-8 flex flex-col items-start">
+      <div class="text-xl font-bold text-[#222a38] mb-2">ПИСЬМА</div>
+      <div class="flex items-end mb-2">
+        <span class="text-2xl font-bold text-[#222a38] mr-1">₽</span>
+        <span id="price-letters" class="text-4xl font-extrabold text-[#222a38]">430</span>
+        <span id="period-letters" class="text-lg text-[#6b7a99] ml-2">/ пакет</span>
+      </div>
+      <label class="w-full mb-4">
+        <span class="block text-[#6b7a99] text-sm mb-1">Количество писем</span>
+        <select class="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#1877ff]">
+          <option>1 000</option>
+          <option>5 000</option>
+          <option>10 000</option>
+        </select>
+      </label>
+      <div class="text-[#6b7a99] text-base mb-6">
+        Подойдет вам, если собираетесь делать рассылки нерегулярно. Пакет писем не имеет сроков действия.
+      </div>
+      <a href="/pricing/" class="mt-auto w-full bg-[#1877ff] hover:bg-[#125fd1] text-white font-bold rounded-lg py-3 text-center transition">Подключить тариф</a>
+    </div>
+  </div>
+</section>
+
+<!-- Call to Action Hero Block -->
+<section class="flex justify-center items-center py-24">
+  <div class="relative bg-[#5c5ad6] rounded-2xl w-full max-w-5xl px-6 md:px-20 py-16 flex flex-col items-center text-center overflow-hidden">
+    <!-- Декоративные элементы -->
+    <span class="absolute left-8 top-16 w-24 h-16 opacity-20">
+      <svg width="100%" height="100%" viewBox="0 0 100 60" fill="none"><g opacity="0.5"><rect x="0" y="0" width="4" height="4" rx="2" fill="white"/><rect x="12" y="0" width="4" height="4" rx="2" fill="white"/><rect x="24" y="0" width="4" height="4" rx="2" fill="white"/><rect x="36" y="0" width="4" height="4" rx="2" fill="white"/><rect x="48" y="0" width="4" height="4" rx="2" fill="white"/><rect x="60" y="0" width="4" height="4" rx="2" fill="white"/><rect x="72" y="0" width="4" height="4" rx="2" fill="white"/><rect x="84" y="0" width="4" height="4" rx="2" fill="white"/><rect x="96" y="0" width="4" height="4" rx="2" fill="white"/><rect x="0" y="12" width="4" height="4" rx="2" fill="white"/><rect x="12" y="12" width="4" height="4" rx="2" fill="white"/><rect x="24" y="12" width="4" height="4" rx="2" fill="white"/><rect x="36" y="12" width="4" height="4" rx="2" fill="white"/><rect x="48" y="12" width="4" height="4" rx="2" fill="white"/><rect x="60" y="12" width="4" height="4" rx="2" fill="white"/><rect x="72" y="12" width="4" height="4" rx="2" fill="white"/><rect x="84" y="12" width="4" height="4" rx="2" fill="white"/><rect x="96" y="12" width="4" height="4" rx="2" fill="white"/></g></svg>
+    </span>
+    <span class="absolute right-8 top-20 w-24 h-16 opacity-20">
+      <svg width="100%" height="100%" viewBox="0 0 100 60" fill="none"><g opacity="0.5"><rect x="0" y="0" width="4" height="4" rx="2" fill="white"/><rect x="12" y="0" width="4" height="4" rx="2" fill="white"/><rect x="24" y="0" width="4" height="4" rx="2" fill="white"/><rect x="36" y="0" width="4" height="4" rx="2" fill="white"/><rect x="48" y="0" width="4" height="4" rx="2" fill="white"/><rect x="60" y="0" width="4" height="4" rx="2" fill="white"/><rect x="72" y="0" width="4" height="4" rx="2" fill="white"/><rect x="84" y="0" width="4" height="4" rx="2" fill="white"/><rect x="96" y="0" width="4" height="4" rx="2" fill="white"/><rect x="0" y="12" width="4" height="4" rx="2" fill="white"/><rect x="12" y="12" width="4" height="4" rx="2" fill="white"/><rect x="24" y="12" width="4" height="4" rx="2" fill="white"/><rect x="36" y="12" width="4" height="4" rx="2" fill="white"/><rect x="48" y="12" width="4" height="4" rx="2" fill="white"/><rect x="60" y="12" width="4" height="4" rx="2" fill="white"/><rect x="72" y="12" width="4" height="4" rx="2" fill="white"/><rect x="84" y="12" width="4" height="4" rx="2" fill="white"/><rect x="96" y="12" width="4" height="4" rx="2" fill="white"/></g></svg>
+    </span>
+    <span class="absolute right-8 bottom-8 opacity-10">
+      <svg width="48" height="48" fill="none"><rect x="8" y="8" width="32" height="32" rx="6" stroke="white" stroke-width="2"/><path d="M16 32l16-16" stroke="white" stroke-width="2"/></svg>
+    </span>
+    <!-- Круглый фон -->
+    <span class="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[700px] h-[700px] rounded-full bg-white opacity-5"></span>
+    <!-- Контент -->
+    <h2 class="text-white text-4xl md:text-5xl font-extrabold mb-4">Попробуйте бесплатно</h2>
+    <p class="text-white text-lg md:text-xl mb-8">Пройдите регистрацию и отправьте уже через 15 минут свою первую рассылку</p>
+    <a href="/register" class="bg-[#1877ff] hover:bg-[#125fd1] text-white font-bold rounded-md px-8 py-3 text-lg transition mb-4">Попробовать бесплатно</a>
+    <div class="flex items-center justify-center gap-2 text-white/90 text-base">
+      <i class="fa-solid fa-circle-check text-white text-lg"></i>
+      200 подписчиков и неограниченное количество писем
+    </div>
+  </div>
+</section>
+
+<!-- Скрипт для переключателя -->
+<script>
+  const toggle = document.getElementById('toggle-period');
+  const priceSubs = document.getElementById('price-subs');
+  const periodSubs = document.getElementById('period-subs');
+  const discountLabel = document.getElementById('discount-label');
+  const subsCount = document.getElementById('subs-count');
+
+  // Базовые цены (месяц/год) для разных количеств подписчиков
+  const prices = {
+    month: {
+      1000: 770,
+      5000: 2900,
+      10000: 4900
+    },
+    year: {
+      1000: Math.round(770 * 12 * 0.7 / 12),    // 30% скидка
+      5000: Math.round(2900 * 12 * 0.7 / 12),
+      10000: Math.round(4900 * 12 * 0.7 / 12)
+    }
+  };
+
+  function updatePrice() {
+    const period = toggle.checked ? 'year' : 'month';
+    const count = subsCount.value;
+    priceSubs.textContent = prices[period][count];
+    periodSubs.textContent = '/ месяц';
+    discountLabel.classList.toggle('hidden', !toggle.checked);
+  }
+
+  toggle.addEventListener('change', updatePrice);
+  subsCount.addEventListener('change', updatePrice);
+
+  // Инициализация при загрузке
+  updatePrice();
+</script>
+<footer class="bg-white pt-12 pb-6 mt-12 border-t border-gray-100">
+  <div class="max-w-7xl mx-auto px-4 flex flex-col md:flex-row md:justify-between md:items-start gap-10">
+    <!-- Логотип и контакты -->
+    <div class="flex flex-col items-center md:items-start mb-8 md:mb-0 min-w-[220px]">
+      <div class="flex items-center mb-4">
+        <i class="fa-regular fa-envelope text-[#1877ff] text-3xl mr-2"></i>
+        <span class="text-2xl font-bold text-[#222a38]">vashsender</span>
+      </div>
+      <div class="text-[#222a38] font-bold text-lg mb-1">8 (800) 000-00-00</div>
+      <div class="text-[#6b7a99] text-base mb-1">support@vashsender</div>
+    </div>
+    <!-- Юр. информация -->
+    <div class="flex flex-col items-center md:items-start">
+      <div class="font-bold text-[#222a38] mb-2">Юридическая информация</div>
+      <a href="#" class="text-[#6b7a99] hover:text-[#1877ff] mb-1">АнтиСпам соглашение</a>
+      <a href="#" class="text-[#6b7a99] hover:text-[#1877ff] mb-1">Политика конфиденциальности</a>
+      <a href="#" class="text-[#6b7a99] hover:text-[#1877ff] mb-1">Политика возвратов</a>
+      <a href="#" class="text-[#6b7a99] hover:text-[#1877ff]">Лицензионное соглашение</a>
+    </div>
+    <!-- Дополнительно -->
+    <div class="flex flex-col items-center md:items-start">
+      <div class="font-bold text-[#222a38] mb-2">Дополнительно</div>
+      <a href="#" class="text-[#6b7a99] hover:text-[#1877ff] mb-1">Партнерская программа</a>
+      <a href="#" class="text-[#6b7a99] hover:text-[#1877ff] mb-1">Блог</a>
+      <a href="#" class="text-[#6b7a99] hover:text-[#1877ff] mb-1">Интеграция</a>
+      <a href="/pricing/" class="text-[#6b7a99] hover:text-[#1877ff]">Тарифы</a>
+    </div>
+    <!-- Другие сервисы -->
+    <div class="flex flex-col items-center md:items-start">
+      <div class="font-bold text-[#222a38] mb-2">Другие наши сервисы</div>
+      <a href="#" class="text-[#6b7a99] hover:text-[#1877ff] mb-1">СМС рассылки</a>
+      <a href="#" class="text-[#6b7a99] hover:text-[#1877ff] mb-1">Автообзвон</a>
+      <a href="#" class="text-[#6b7a99] hover:text-[#1877ff]">Идентификация посетителей</a>
+    </div>
+  </div>
+  <div class="max-w-7xl mx-auto mt-8 mb-4 border-t border-gray-100"></div>
+  <div class="max-w-7xl mx-auto px-4 flex flex-col md:flex-row md:justify-between items-center text-sm text-[#6b7a99]">
+    <div class="flex items-center gap-4 mb-2 md:mb-0">
+      <span>© 2017 - 2025 ООО "vashsender" ИНН 0000 ОГРН 0000 </span>
+      <div class="flex items-center gap-2">
+        <img src="https://upload.wikimedia.org/wikipedia/commons/4/41/Visa_Logo.png" alt="Visa" class="h-6" />
+        <img src="https://upload.wikimedia.org/wikipedia/commons/0/04/Mastercard-logo.png" alt="Mastercard" class="h-6" />
+        <img src="https://upload.wikimedia.org/wikipedia/commons/2/2a/Mir-logo.svg" alt="МИР" class="h-6" />
+        <img src="https://upload.wikimedia.org/wikipedia/commons/6/6a/SBP_logo.svg" alt="СБП" class="h-6" />
+      </div>
+    </div>
+    <div class="flex items-center gap-1">
+      <span>Сделано с</span>
+      <i class="fa-solid fa-heart text-red-500"></i>
+      <span>любовью и страстью</span>
+    </div>
+  </div>
+</footer>
+</body>
+</html>

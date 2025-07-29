@@ -1,0 +1,401 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Панель поддержки</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/alpinejs" defer></script>
+    <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+    <style>
+        [x-cloak] { display: none !important; }
+    </style>
+</head>
+<body class="bg-gray-50">
+    <div class="min-h-screen flex" x-data="supportAdminPanel">
+        <!-- Sidebar -->
+        {% include "dashboard/common/sidebar.html" %}
+
+        <!-- Main Content -->
+        <div class="flex-1 flex md:ml-64">
+            <div class="flex-1 p-8">
+                <!-- Header -->
+                <div class="flex items-center justify-between mb-8">
+                    <div>
+                        <h1 class="text-3xl font-bold text-gray-900">Панель поддержки</h1>
+                        <p class="text-gray-600 mt-2">Управление всеми тикетами пользователей</p>
+                    </div>
+                </div>
+
+                <!-- Filters -->
+                <div class="bg-white rounded-lg p-6 shadow-sm border mb-6">
+                    <div class="flex flex-wrap gap-4 items-center">
+                        <div class="flex-1 min-w-64">
+                            <input 
+                                type="text" 
+                                placeholder="Поиск по тикетам..."
+                                x-model="searchQuery"
+                                @input.debounce.300ms="filterTickets"
+                                class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                            >
+                        </div>
+                        <select 
+                            x-model="statusFilter"
+                            @change="filterTickets"
+                            class="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        >
+                            <option value="">Все статусы</option>
+                            <option value="open">Открытые</option>
+                            <option value="in_progress">В работе</option>
+                            <option value="waiting">Ожидают ответа</option>
+                            <option value="resolved">Решённые</option>
+                            <option value="closed">Закрытые</option>
+                        </select>
+                        <select 
+                            x-model="priorityFilter"
+                            @change="filterTickets"
+                            class="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        >
+                            <option value="">Все приоритеты</option>
+                            <option value="low">Низкий</option>
+                            <option value="medium">Средний</option>
+                            <option value="high">Высокий</option>
+                            <option value="urgent">Срочный</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- Tickets Table -->
+                <div class="bg-white rounded-lg shadow-sm border overflow-x-auto">
+                    <table class="min-w-full divide-y divide-gray-200">
+                        <thead class="bg-gray-50">
+                            <tr>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ID</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Тема</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Пользователь</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Статус</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Приоритет</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Создан</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Действия</th>
+                            </tr>
+                        </thead>
+                        <tbody class="bg-white divide-y divide-gray-200">
+                            <template x-for="ticket in filteredTickets" :key="ticket.ticket_id">
+                                <tr class="hover:bg-gray-50 transition-colors cursor-pointer" @click="openTicket(ticket)">
+                                    <td class="px-6 py-4 whitespace-nowrap text-xs text-gray-500" x-text="ticket.ticket_id.slice(0, 8)"></td>
+                                    <td class="px-6 py-4 whitespace-nowrap font-medium text-gray-900" x-text="ticket.ticket_subject"></td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-gray-700" x-text="ticket.ticket_user"></td>
+                                    <td class="px-6 py-4 whitespace-nowrap">
+                                        <span class="px-2 py-1 text-xs font-medium rounded-full" :class="getStatusClass(ticket.ticket_status)" x-text="getStatusText(ticket.ticket_status)"></span>
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap">
+                                        <span class="px-2 py-1 text-xs font-medium rounded-full" :class="getPriorityClass(ticket.ticket_priority)" x-text="getPriorityText(ticket.ticket_priority)"></span>
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-gray-500" x-text="formatDate(ticket.ticket_created_at)"></td>
+                                    <td class="px-6 py-4 whitespace-nowrap" @click.stop>
+                                        <div class="relative" x-data="{ open: false }">
+                                            <button @click.stop="open = !open" class="text-gray-500 hover:text-gray-900 p-2 rounded-lg hover:bg-gray-100">
+                                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <circle cx="12" cy="12" r="1.5"/>
+                                                    <circle cx="19.5" cy="12" r="1.5"/>
+                                                    <circle cx="4.5" cy="12" r="1.5"/>
+                                                </svg>
+                                            </button>
+                                            <div x-show="open" @click.away="open = false" class="absolute right-0 mt-2 w-40 bg-white border rounded-lg shadow-lg z-10">
+                                                <button @click.stop="closeTicket(ticket)" class="block w-full text-left px-4 py-2 text-sm hover:bg-gray-100">Закрыть</button>
+                                                <button @click.stop="resolveTicket(ticket)" class="block w-full text-left px-4 py-2 text-sm hover:bg-gray-100">Решить</button>
+                                            </div>
+                                        </div>
+                                        <button @click.stop="openTicket(ticket)" class="text-blue-600 hover:text-blue-700 p-2 rounded-lg hover:bg-blue-50 ml-2">
+                                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path>
+                                            </svg>
+                                        </button>
+                                    </td>
+                                </tr>
+                            </template>
+                            <template x-if="filteredTickets.length === 0">
+                                <tr>
+                                    <td colspan="7" class="px-6 py-12 text-center text-gray-500">Тикеты не найдены</td>
+                                </tr>
+                            </template>
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Ticket Detail Modal (reuse from tickets.html, but for staff) -->
+                <div 
+                    x-show="showTicketDetail" 
+                    x-cloak
+                    class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
+                    @click.self="showTicketDetail = false"
+                >
+                    <div class="bg-white rounded-lg p-8 max-w-4xl w-full mx-4 max-h-[90vh] overflow-y-auto">
+                        <div class="flex items-center justify-between mb-6">
+                            <h2 class="text-2xl font-bold text-gray-900" x-text="selectedTicket?.ticket_subject"></h2>
+                            <button @click="showTicketDetail = false" class="text-gray-400 hover:text-gray-600">
+                                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                                </svg>
+                            </button>
+                        </div>
+                        <template x-if="selectedTicket">
+                            <div class="space-y-6">
+                                <div class="bg-gray-50 rounded-lg p-6">
+                                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        <div>
+                                            <p class="text-sm font-medium text-gray-600">Статус</p>
+                                            <span class="inline-block px-3 py-1 text-sm font-medium rounded-full mt-1" :class="getStatusClass(selectedTicket.ticket_status)" x-text="getStatusText(selectedTicket.ticket_status)"></span>
+                                        </div>
+                                        <div>
+                                            <p class="text-sm font-medium text-gray-600">Приоритет</p>
+                                            <span class="inline-block px-3 py-1 text-sm font-medium rounded-full mt-1" :class="getPriorityClass(selectedTicket.ticket_priority)" x-text="getPriorityText(selectedTicket.ticket_priority)"></span>
+                                        </div>
+                                        <div>
+                                            <p class="text-sm font-medium text-gray-600">Создан</p>
+                                            <p class="text-gray-900 mt-1" x-text="formatDate(selectedTicket.ticket_created_at)"></p>
+                                        </div>
+                                        <div>
+                                            <p class="text-sm font-medium text-gray-600">Автор</p>
+                                            <p class="text-gray-900 mt-1" x-text="selectedTicket.ticket_user"></p>
+                                        </div>
+                                    </div>
+                                    <div class="mt-4">
+                                        <p class="text-sm font-medium text-gray-600 mb-2">Описание</p>
+                                        <p class="text-gray-900" x-text="selectedTicket.ticket_description"></p>
+                                    </div>
+                                </div>
+                                <div>
+                                    <h3 class="text-lg font-semibold text-gray-900 mb-4">Сообщения</h3>
+                                    <div class="space-y-4">
+                                        <template x-for="message in selectedTicket.ticket_messages" :key="message.message_id">
+                                            <div class="border rounded-lg p-4" :class="message.message_staff_reply ? 'bg-blue-50 border-blue-200' : 'bg-gray-50 border-gray-200'">
+                                                <div class="flex items-start justify-between mb-2">
+                                                    <div class="flex items-center gap-2">
+                                                        <span class="font-medium text-gray-900" x-text="message.message_author.email"></span>
+                                                        <span class="px-2 py-1 text-xs font-medium rounded-full" :class="message.message_staff_reply ? 'bg-blue-100 text-blue-800' : 'bg-gray-100 text-gray-800'" x-text="message.message_staff_reply ? 'Сотрудник' : 'Пользователь'"></span>
+                                                    </div>
+                                                    <span class="text-sm text-gray-500" x-text="formatDate(message.message_created_at)"></span>
+                                                </div>
+                                                <p class="text-gray-900" x-text="message.message_text"></p>
+                                            </div>
+                                        </template>
+                                    </div>
+                                </div>
+                                <div class="border-t pt-6">
+                                    <h3 class="text-lg font-semibold text-gray-900 mb-4">Добавить ответ</h3>
+                                    <form @submit.prevent="addReply">
+                                        <textarea 
+                                            x-model="replyMessage"
+                                            required
+                                            rows="4"
+                                            class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent mb-4"
+                                            placeholder="Введите ваш ответ..."
+                                        ></textarea>
+                                        <div class="flex items-center justify-end gap-4">
+                                            <button 
+                                                type="button"
+                                                @click="showTicketDetail = false"
+                                                class="px-6 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50"
+                                            >
+                                                Закрыть
+                                            </button>
+                                            <button 
+                                                type="submit"
+                                                :disabled="isReplying"
+                                                class="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
+                                            >
+                                                <span x-show="!isReplying">Отправить</span>
+                                                <span x-show="isReplying">Отправка...</span>
+                                            </button>
+                                        </div>
+                                    </form>
+                                </div>
+                                <div class="flex gap-2 mb-4">
+                                    <button @click="closeTicket(selectedTicket)" class="px-4 py-2 bg-gray-200 text-gray-800 rounded hover:bg-gray-300">Закрыть</button>
+                                    <button @click="resolveTicket(selectedTicket)" class="px-4 py-2 bg-green-200 text-green-800 rounded hover:bg-green-300">Решить</button>
+                                </div>
+                            </div>
+                        </template>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            if (typeof lucide !== 'undefined') {
+                lucide.createIcons();
+            }
+        });
+        const API_BASE = '/support/api/';
+        function getCSRFToken() {
+            return document.cookie
+                .split(';')
+                .map(c => c.trim())
+                .find(c => c.startsWith('csrftoken='))
+                ?.split('=')[1] || '';
+        }
+        document.addEventListener('alpine:init', () => {
+            Alpine.data('supportAdminPanel', () => ({
+                tickets: [],
+                filteredTickets: [],
+                searchQuery: '',
+                statusFilter: '',
+                priorityFilter: '',
+                showTicketDetail: false,
+                selectedTicket: null,
+                replyMessage: '',
+                isReplying: false,
+                async init() {
+                    await this.loadTickets();
+                    this.filterTickets();
+                    if (typeof lucide !== 'undefined') {
+                        lucide.createIcons();
+                    }
+                },
+                async loadTickets() {
+                    try {
+                        const response = await fetch(API_BASE + 'tickets/', { credentials: 'same-origin' });
+                        if (!response.ok) throw new Error('Failed to load tickets');
+                        this.tickets = await response.json();
+                    } catch (error) {
+                        console.error('Error loading tickets:', error);
+                    }
+                },
+                filterTickets() {
+                    this.filteredTickets = this.tickets.filter(ticket => {
+                        const matchesSearch = !this.searchQuery || 
+                            ticket.ticket_subject.toLowerCase().includes(this.searchQuery.toLowerCase()) ||
+                            ticket.ticket_description.toLowerCase().includes(this.searchQuery.toLowerCase());
+                        const matchesStatus = !this.statusFilter || ticket.ticket_status === this.statusFilter;
+                        const matchesPriority = !this.priorityFilter || ticket.ticket_priority === this.priorityFilter;
+                        return matchesSearch && matchesStatus && matchesPriority;
+                    });
+                },
+                async openTicket(ticket) {
+                    try {
+                        const ticketResponse = await fetch(API_BASE + `tickets/${ticket.ticket_id}/`, { credentials: 'same-origin' });
+                        if (!ticketResponse.ok) throw new Error('Failed to load ticket details');
+                        const ticketData = await ticketResponse.json();
+                        const messagesResponse = await fetch(API_BASE + `tickets/${ticket.ticket_id}/messages/`, { credentials: 'same-origin' });
+                        if (!messagesResponse.ok) throw new Error('Failed to load ticket messages');
+                        const messagesData = await messagesResponse.json();
+                        this.selectedTicket = { ...ticketData, ticket_messages: messagesData };
+                        this.showTicketDetail = true;
+                    } catch (error) {
+                        console.error('Error loading ticket details:', error);
+                    }
+                },
+                async addReply() {
+                    this.isReplying = true;
+                    try {
+                        const response = await fetch(API_BASE + `tickets/${this.selectedTicket.ticket_id}/messages/`, {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'X-CSRFToken': getCSRFToken()
+                            },
+                            credentials: 'same-origin',
+                            body: JSON.stringify({ message_text: this.replyMessage })
+                        });
+                        if (!response.ok) throw new Error('Failed to add reply');
+                        const newMessage = await response.json();
+                        this.selectedTicket.ticket_messages.push(newMessage);
+                        this.replyMessage = '';
+                    } catch (error) {
+                        console.error('Error adding reply:', error);
+                        alert('Ошибка при отправке ответа');
+                    } finally {
+                        this.isReplying = false;
+                    }
+                },
+                async closeTicket(ticket) {
+                    try {
+                        const response = await fetch(API_BASE + `tickets/${ticket.ticket_id}/close/`, {
+                            method: 'POST',
+                            headers: { 'X-CSRFToken': getCSRFToken() },
+                            credentials: 'same-origin'
+                        });
+                        if (!response.ok) throw new Error('Failed to close ticket');
+                        ticket.ticket_status = 'closed';
+                        this.filterTickets();
+                        if (this.selectedTicket && this.selectedTicket.ticket_id === ticket.ticket_id) {
+                            this.selectedTicket.ticket_status = 'closed';
+                        }
+                    } catch (error) {
+                        alert('Ошибка при закрытии тикета');
+                    }
+                },
+                async resolveTicket(ticket) {
+                    try {
+                        const response = await fetch(API_BASE + `tickets/${ticket.ticket_id}/resolve/`, {
+                            method: 'POST',
+                            headers: { 'X-CSRFToken': getCSRFToken() },
+                            credentials: 'same-origin'
+                        });
+                        if (!response.ok) throw new Error('Failed to resolve ticket');
+                        ticket.ticket_status = 'resolved';
+                        this.filterTickets();
+                        if (this.selectedTicket && this.selectedTicket.ticket_id === ticket.ticket_id) {
+                            this.selectedTicket.ticket_status = 'resolved';
+                        }
+                    } catch (error) {
+                        alert('Ошибка при решении тикета');
+                    }
+                },
+                formatDate(dateString) {
+                    if (!dateString) return '';
+                    const date = new Date(dateString);
+                    return date.toLocaleDateString('ru-RU', {
+                        day: '2-digit',
+                        month: '2-digit',
+                        year: 'numeric',
+                        hour: '2-digit',
+                        minute: '2-digit'
+                    });
+                },
+                getStatusClass(status) {
+                    const classes = {
+                        'open': 'bg-blue-100 text-blue-800',
+                        'in_progress': 'bg-yellow-100 text-yellow-800',
+                        'waiting': 'bg-orange-100 text-orange-800',
+                        'resolved': 'bg-green-100 text-green-800',
+                        'closed': 'bg-gray-100 text-gray-800'
+                    };
+                    return classes[status] || 'bg-gray-100 text-gray-800';
+                },
+                getStatusText(status) {
+                    const texts = {
+                        'open': 'Открыт',
+                        'in_progress': 'В работе',
+                        'waiting': 'Ожидает ответа',
+                        'resolved': 'Решён',
+                        'closed': 'Закрыт'
+                    };
+                    return texts[status] || status;
+                },
+                getPriorityClass(priority) {
+                    const classes = {
+                        'low': 'bg-gray-100 text-gray-800',
+                        'medium': 'bg-blue-100 text-blue-800',
+                        'high': 'bg-orange-100 text-orange-800',
+                        'urgent': 'bg-red-100 text-red-800'
+                    };
+                    return classes[priority] || 'bg-gray-100 text-gray-800';
+                },
+                getPriorityText(priority) {
+                    const texts = {
+                        'low': 'Низкий',
+                        'medium': 'Средний',
+                        'high': 'Высокий',
+                        'urgent': 'Срочный'
+                    };
+                    return texts[priority] || priority;
+                }
+            }));
+        });
+    </script>
+</body>
+</html> 

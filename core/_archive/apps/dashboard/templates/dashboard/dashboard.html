@@ -1,0 +1,890 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard</title>
+    <!-- Tailwind CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <!-- Alpine.js -->
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+        
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+
+        .gradient-bg {
+            background: linear-gradient(135deg, #3B82F6 0%, #2563EB 100%);
+        }
+
+        .card-hover {
+            transition: all 0.3s ease;
+        }
+
+        .card-hover:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(0, 0, 0, 0.1);
+        }
+
+        .stat-card {
+            background: #ffffff;
+            border: 1px solid #e5e7eb;
+        }
+
+        .chart-card {
+            background: #ffffff;
+            border: 1px solid #e5e7eb;
+        }
+
+        .button-gradient {
+            background: #3B82F6;
+            transition: all 0.3s ease;
+        }
+
+        .button-gradient:hover {
+            background: #2563EB;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3);
+        }
+
+        .nav-button {
+            transition: all 0.2s ease;
+        }
+
+        .nav-button:hover {
+            background: rgba(59, 130, 246, 0.1);
+        }
+
+        .stat-icon {
+            background: rgba(59, 130, 246, 0.1);
+        }
+
+        .sidebar-pattern {
+            position: absolute;
+            inset: 0;
+            opacity: 0.1;
+        }
+
+        .sidebar-pattern::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(to bottom right, #EBF5FF, #E0E7FF);
+        }
+
+        .sidebar-pattern::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            right: 0;
+            width: 8rem;
+            height: 8rem;
+            background: linear-gradient(to bottom left, #DBEAFE, transparent);
+            border-radius: 9999px;
+            filter: blur(2rem);
+        }
+
+        .main-content {
+            margin-left: 16rem; /* 64 * 4 = 256px (w-64) */
+        }
+
+        @media (max-width: 768px) {
+            .main-content {
+                margin-left: 0;
+            }
+            
+            .header-content {
+                flex-direction: column;
+                gap: 1rem;
+            }
+            
+            .period-selector {
+                width: 100%;
+                justify-content: center;
+            }
+            
+            .header-actions {
+                width: 100%;
+                justify-content: center;
+            }
+
+            .sidebar {
+                transform: translateX(-100%);
+                transition: transform 0.3s ease;
+            }
+
+            .sidebar.open {
+                transform: translateX(0);
+            }
+        }
+
+        @media (max-width: 640px) {
+            .stats-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .charts-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .campaigns-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .templates-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body class="bg-gray-50 min-h-screen">
+    <div x-data="dashboardApp()" class="min-h-screen">
+        <!-- Sidebar -->
+        {% include "dashboard/common/sidebar.html" %}
+
+        <!-- Мобильное меню -->
+        <div class="md:hidden fixed inset-0 bg-black/50 z-40" x-show="sidebarOpen" @click="sidebarOpen = false"></div>
+        <aside class="md:hidden fixed inset-y-0 left-0 w-64 bg-white z-50 transform transition-transform duration-300" 
+               :class="{'translate-x-0': sidebarOpen, '-translate-x-full': !sidebarOpen}">
+            <!-- Содержимое мобильного меню такое же, как в десктопной версии -->
+            <div class="sidebar-pattern"></div>
+            <div class="relative z-10 flex flex-col h-full">
+                <!-- Логотип / Бренд -->
+                <div class="p-6 pb-4 flex items-center justify-between">
+                    <div class="flex items-center space-x-3">
+                        <div class="w-8 h-8 bg-gradient-to-br from-blue-500 to-blue-600 rounded-lg flex items-center justify-center shadow-lg">
+                            <i data-lucide="mail" class="w-4 h-4 text-white"></i>
+                        </div>
+                        <h2 class="text-xl font-bold text-gray-800">Mail</h2>
+                    </div>
+                    <button @click="sidebarOpen = false" class="p-2 rounded-lg hover:bg-gray-100">
+                        <i data-lucide="x" class="w-5 h-5 text-gray-500"></i>
+                    </button>
+                </div>
+
+                <!-- Навигация (такая же, как в десктопной версии) -->
+                <nav class="flex-1 px-3 py-6 space-y-1">
+                    <!-- ... (копируем навигацию из десктопной версии) ... -->
+                </nav>
+
+                <!-- Профиль пользователя (такой же, как в десктопной версии) -->
+                <div class="mt-auto p-4 border-t border-gray-200 bg-gray-50/50">
+                    <!-- ... (копируем профиль из десктопной версии) ... -->
+                </div>
+            </div>
+        </aside>
+
+        <!-- Основной контент -->
+        <div class="main-content">
+            <!-- Header -->
+            <header class="bg-white border-b border-gray-200 px-4 sm:px-6 py-4 sticky top-0 z-30 shadow-sm">
+                <div class="flex items-center justify-between max-w-7xl mx-auto header-content">
+                    <div class="flex items-center space-x-4">
+                        <button @click="sidebarOpen = true" class="md:hidden p-2 rounded-lg hover:bg-gray-100">
+                            <i data-lucide="menu" class="w-5 h-5 text-gray-600"></i>
+                        </button>
+                        <h1 class="text-2xl font-bold text-gray-900">Dashboard</h1>
+                        <!-- <div class="flex items-center space-x-2 bg-gray-100 rounded-lg p-1 period-selector">
+                            <button 
+                                x-on:click="selectedPeriod = '7d'" 
+                                :class="{ 'bg-white text-blue-600 shadow-sm': selectedPeriod === '7d', 'text-gray-600 hover:text-gray-900': selectedPeriod !== '7d' }" 
+                                class="px-3 py-1 rounded-md text-sm font-medium transition-all duration-200"
+                            >7 дней</button>
+                            <button 
+                                x-on:click="selectedPeriod = '30d'" 
+                                :class="{ 'bg-white text-blue-600 shadow-sm': selectedPeriod === '30d', 'text-gray-600 hover:text-gray-900': selectedPeriod !== '30d' }" 
+                                class="px-3 py-1 rounded-md text-sm font-medium transition-all duration-200"
+                            >30 дней</button>
+                            <button 
+                                x-on:click="selectedPeriod = '90d'" 
+                                :class="{ 'bg-white text-blue-600 shadow-sm': selectedPeriod === '90d', 'text-gray-600 hover:text-gray-900': selectedPeriod !== '90d' }" 
+                                class="px-3 py-1 rounded-md text-sm font-medium transition-all duration-200"
+                            >90 дней</button>
+                        </div> -->
+                    </div>
+                    <div class="flex items-center space-x-3 header-actions">
+                        <!-- <button class="p-2 rounded-lg hover:bg-gray-100 transition-all duration-200">
+                            <i data-lucide="bell" class="w-5 h-5 text-gray-600"></i>
+                        </button> -->
+                        <a href="/accounts/settings/" class="p-2 rounded-lg hover:bg-gray-100 transition-all duration-200">
+                            <i data-lucide="settings" class="w-5 h-5 text-gray-600"></i>
+                        </a>
+                        <a href="/campaigns/new/" class="button-gradient text-white px-4 py-2 rounded-lg flex items-center space-x-2">
+                            <i data-lucide="plus" class="w-4 h-4"></i>
+                            <span>Создать рассылку</span>
+                        </a>
+                    </div>
+                </div>
+            </header>
+
+            <!-- Основной контент -->
+            <div class="p-4 sm:p-6 max-w-7xl mx-auto">
+                <!-- Stats Overview -->
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 mb-8 stats-grid">
+                    <template x-for="stat in stats">
+                        <div class="stat-card rounded-xl p-4 sm:p-6 card-hover">
+                            <div class="flex items-center justify-between">
+                                <div>
+                                    <p class="text-sm font-medium text-gray-600 mb-1" x-text="stat.label"></p>
+                                    <p class="text-2xl font-bold text-gray-900" x-text="stat.value"></p>
+                                </div>
+                                <div class="stat-icon p-3 rounded-lg">
+                                    <i :data-lucide="stat.icon" class="w-6 h-6 text-blue-600"></i>
+                                </div>
+                            </div>
+                        </div>
+                    </template>
+                </div>
+
+                <!-- Charts Section -->
+                <!--
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6 mb-8 charts-grid">
+                    <div class="lg:col-span-2 chart-card rounded-xl p-4 sm:p-6 card-hover">
+                        <div class="flex flex-col sm:flex-row sm:items-center justify-between mb-6 gap-4">
+                            <h3 class="text-lg font-semibold text-gray-900">Активность за неделю</h3>
+                            <div class="flex flex-wrap items-center gap-4 text-sm">
+                                <div class="flex items-center space-x-2">
+                                    <div class="w-3 h-3 rounded-full bg-blue-600"></div>
+                                    <span class="text-gray-600">Отправлено</span>
+                                </div>
+                                <div class="flex items-center space-x-2">
+                                    <div class="w-3 h-3 rounded-full bg-green-500"></div>
+                                    <span class="text-gray-600">Открыто</span>
+                                </div>
+                                <div class="flex items-center space-x-2">
+                                    <div class="w-3 h-3 rounded-full bg-yellow-500"></div>
+                                    <span class="text-gray-600">Кликнуто</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="relative" style="height: 300px;">
+                            <canvas id="activityChart"></canvas>
+                        </div>
+                    </div>
+                    <div class="chart-card rounded-xl p-4 sm:p-6 card-hover">
+                        <h3 class="text-lg font-semibold text-gray-900 mb-6">Вовлеченность</h3>
+                        <div class="relative" style="height: 200px;">
+                            <canvas id="engagementChart"></canvas>
+                        </div>
+                        <div class="mt-4 space-y-2">
+                            <div class="flex items-center justify-between">
+                                <div class="flex items-center space-x-2">
+                                    <div class="w-3 h-3 rounded-full bg-[#3B82F6]"></div>
+                                    <span class="text-sm text-gray-600">Доставлено</span>
+                                </div>
+                                <span class="text-sm font-medium text-gray-900">85%</span>
+                            </div>
+                            <div class="flex items-center justify-between">
+                                <div class="flex items-center space-x-2">
+                                    <div class="w-3 h-3 rounded-full bg-[#10B981]"></div>
+                                    <span class="text-sm text-gray-600">Открыто</span>
+                                </div>
+                                <span class="text-sm font-medium text-gray-900">65%</span>
+                            </div>
+                            <div class="flex items-center justify-between">
+                                <div class="flex items-center space-x-2">
+                                    <div class="w-3 h-3 rounded-full bg-[#F59E0B]"></div>
+                                    <span class="text-sm text-gray-600">Кликнуто</span>
+                                </div>
+                                <span class="text-sm font-medium text-gray-900">12%</span>
+                            </div>
+                            <div class="flex items-center justify-between">
+                                <div class="flex items-center space-x-2">
+                                    <div class="w-3 h-3 rounded-full bg-[#EF4444]"></div>
+                                    <span class="text-sm text-gray-600">Отписались</span>
+                                </div>
+                                <span class="text-sm font-medium text-gray-900">3%</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                -->
+
+                <!-- Recent Campaigns and Quick Actions/Lists -->
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6 campaigns-grid">
+                    <!-- Recent Campaigns -->
+                    <div class="lg:col-span-2 chart-card rounded-xl p-4 sm:p-6 card-hover flex flex-col min-h-[400px]">
+                        <div class="flex flex-col sm:flex-row sm:items-center justify-between mb-6 gap-4">
+                            <h3 class="text-lg font-semibold text-gray-900">Недавние кампании</h3>
+                            <a href="/campaigns/" class="text-blue-600 hover:text-blue-700 text-sm font-medium flex items-center space-x-1 transition-colors">
+                                <span>Все кампании</span>
+                                <i data-lucide="chevron-right" class="w-4 h-4"></i>
+                            </a>
+                        </div>
+                        <div class="flex-1">
+                            <template x-if="campaigns.length === 0">
+                                <div class="flex flex-col items-center justify-center h-full py-12 px-4 text-center">
+                                    <div class="w-16 h-16 bg-blue-50 rounded-full flex items-center justify-center mb-4">
+                                        <i data-lucide="mail" class="w-8 h-8 text-blue-500"></i>
+                                    </div>
+                                    <h4 class="text-lg font-medium text-gray-900 mb-2">Нет кампаний</h4>
+                                    <p class="text-gray-600 mb-6 max-w-sm">Создайте свою первую email-рассылку, чтобы начать работу с платформой</p>
+                                    <a href="/campaigns/new/"><button class="button-gradient text-white px-6 py-2 rounded-lg flex items-center space-x-2">
+                                        <i data-lucide="plus" class="w-4 h-4"></i>
+                                        <span>Создать кампанию</span>
+                                    </button></a>
+                                </div>
+                            </template>
+                            <template x-if="campaigns.length > 0">
+                                <div class="space-y-3">
+                                    <template x-for="campaign in campaigns.slice(0, 8)">
+                                        <div class="flex flex-col sm:flex-row sm:items-center justify-between p-4 border border-gray-100 rounded-lg hover:bg-gray-50 transition-colors">
+                                            <div class="flex items-center space-x-4 mb-4 sm:mb-0">
+                                                <div class="w-3 h-3 rounded-full" :class="{
+                                                    'bg-green-500': campaign.status === 'completed',
+                                                    'bg-blue-500': campaign.status === 'draft',
+                                                    'bg-yellow-500': campaign.status === 'scheduled',
+                                                    'bg-gray-400': campaign.status === 'cancelled'
+                                                }"></div>
+                                                <div>
+                                                    <h4 class="font-medium text-gray-900" x-text="campaign.name"></h4>
+                                                    <p class="text-sm text-gray-600" x-text="campaign.date"></p>
+                                                </div>
+                                            </div>
+                                            <div class="grid grid-cols-3 gap-4 sm:gap-6 text-sm text-gray-600">
+                                                <div class="text-center">
+                                                    <p class="font-medium text-gray-900" x-text="campaign.sent"></p>
+                                                    <p class="text-xs">Отправлено</p>
+                                                </div>
+                                                <div class="text-center">
+                                                    <p class="font-medium text-gray-900" x-text="campaign.opened"></p>
+                                                    <p class="text-xs">Открыто</p>
+                                                </div>
+                                                <div class="text-center">
+                                                    <p class="font-medium text-gray-900" x-text="campaign.clicked"></p>
+                                                    <p class="text-xs">Клики</p>
+                                                </div>
+                                            </div>
+                                            <div class="hidden sm:block">
+                                                <button class="p-1 rounded hover:bg-gray-200 transition-colors">
+                                                    <i data-lucide="more-vertical" class="w-4 h-4"></i>
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </template>
+                                </div>
+                            </template>
+                        </div>
+                    </div>
+
+                    <!-- Quick Actions & Contact Lists -->
+                    <div class="space-y-6">
+                        <!-- Quick Actions -->
+                        <div class="chart-card rounded-xl p-4 sm:p-6 card-hover">
+                            <h3 class="text-lg font-semibold text-gray-900 mb-4">Быстрые действия</h3>
+                            <div class="space-y-3">
+                                <a href="/campaigns/new/" class="w-full text-left p-4 rounded-lg border border-gray-200 hover:border-blue-300 hover:bg-blue-50 transition-all group block">
+                                    <div class="flex items-start space-x-3">
+                                        <div class="p-2 rounded-lg bg-blue-50 group-hover:bg-blue-100 transition-colors">
+                                            <i data-lucide="mail" class="w-5 h-5 text-blue-600"></i>
+                                        </div>
+                                        <div>
+                                            <h4 class="font-medium text-gray-900 mb-1">Создать кампанию</h4>
+                                            <p class="text-sm text-gray-600">Новая email рассылка</p>
+                                        </div>
+                                    </div>
+                                </a>
+                                <a href="/lists/" class="w-full text-left p-4 rounded-lg border border-gray-200 hover:border-blue-300 hover:bg-blue-50 transition-all group block">
+                                    <div class="flex items-start space-x-3">
+                                        <div class="p-2 rounded-lg bg-blue-50 group-hover:bg-blue-100 transition-colors">
+                                            <i data-lucide="user-plus" class="w-5 h-5 text-blue-600"></i>
+                                        </div>
+                                        <div>
+                                            <h4 class="font-medium text-gray-900 mb-1">Импорт контактов</h4>
+                                            <p class="text-sm text-gray-600">Загрузить CSV файл</p>
+                                        </div>
+                                    </div>
+                                </a>
+                                <a href="/templates/" class="w-full text-left p-4 rounded-lg border border-gray-200 hover:border-blue-300 hover:bg-blue-50 transition-all group block">
+                                    <div class="flex items-start space-x-3">
+                                        <div class="p-2 rounded-lg bg-blue-50 group-hover:bg-blue-100 transition-colors">
+                                            <i data-lucide="plus" class="w-5 h-5 text-blue-600"></i>
+                                        </div>
+                                        <div>
+                                            <h4 class="font-medium text-gray-900 mb-1">Новый шаблон</h4>
+                                            <p class="text-sm text-gray-600">Создать дизайн письма</p>
+                                        </div>
+                                    </div>
+                                </a>
+                                <a href="/campaigns/" class="w-full text-left p-4 rounded-lg border border-gray-200 hover:border-blue-300 hover:bg-blue-50 transition-all group block">
+                                    <div class="flex items-start space-x-3">
+                                        <div class="p-2 rounded-lg bg-blue-50 group-hover:bg-blue-100 transition-colors">
+                                            <i data-lucide="trending-up" class="w-5 h-5 text-blue-600"></i>
+                                        </div>
+                                        <div>
+                                            <h4 class="font-medium text-gray-900 mb-1">Отчеты</h4>
+                                            <p class="text-sm text-gray-600">Просмотр аналитики</p>
+                                        </div>
+                                    </div>
+                                </a>
+                            </div>
+                        </div>
+                        <!-- Contact Lists -->
+                        <div class="chart-card rounded-xl p-4 sm:p-6 card-hover">
+                            <div class="flex flex-col sm:flex-row sm:items-center justify-between mb-4 gap-4">
+                                <h3 class="text-lg font-semibold text-gray-900">Списки контактов</h3>
+                                <a href="/lists/" class="text-blue-600 hover:text-blue-700 text-sm font-medium">Все списки</a>
+                            </div>
+                            <div class="space-y-3">
+                                <template x-for="list in contactLists">
+                                    <div class="flex items-center justify-between p-3 border border-gray-100 rounded-lg hover:bg-gray-50 transition-colors">
+                                        <div class="flex items-center space-x-3">
+                                            <div class="w-2 h-2 rounded-full bg-green-500"></div>
+                                            <div>
+                                                <h4 class="font-medium text-gray-900 text-sm" x-text="list.name"></h4>
+                                                <p class="text-xs text-gray-600" x-text="list.contacts + ' контактов'"></p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </template>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Templates Section -->
+                <div class="mt-8 chart-card rounded-xl p-4 sm:p-6 card-hover">
+                    <div class="flex flex-col sm:flex-row sm:items-center justify-between mb-6 gap-4">
+                        <h3 class="text-lg font-semibold text-gray-900">Ваши шаблоны</h3>
+                        <a href="/templates/" class="text-blue-600 hover:text-blue-700 text-sm font-medium flex items-center space-x-1 transition-colors">
+                            <span>Все шаблоны</span>
+                            <i data-lucide="chevron-right" class="w-4 h-4"></i>
+                        </a>
+                    </div>
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 templates-grid">
+                        <template x-if="templates.length === 0">
+                            <div class="col-span-full flex flex-col items-center justify-center py-12 px-4 text-center">
+                                <div class="w-16 h-16 bg-blue-50 rounded-full flex items-center justify-center mb-4">
+                                    <i data-lucide="layout" class="w-8 h-8 text-blue-500"></i>
+                                </div>
+                                <h4 class="text-lg font-medium text-gray-900 mb-2">Нет шаблонов</h4>
+                                <p class="text-gray-600 mb-6 max-w-sm">Создайте свой первый шаблон для быстрого создания email-рассылок</p>
+                                <a href="/templates/" class="button-gradient text-white px-6 py-2 rounded-lg flex items-center space-x-2">
+                                    <i data-lucide="plus" class="w-4 h-4"></i>
+                                    <span>Создать шаблон</span>
+                                </a>
+                            </div>
+                        </template>
+                        <template x-for="template in templates.slice(0, 4)">
+                            <div class="border border-gray-200 rounded-lg p-4 hover:border-blue-300 hover:shadow-md transition-all cursor-pointer card-hover">
+                                <div class="flex items-start justify-between mb-3">
+                                    <div class="w-12 h-12 gradient-bg rounded-lg flex items-center justify-center">
+                                        <i data-lucide="mail" class="w-6 h-6 text-white"></i>
+                                    </div>
+                                    <button class="p-1 rounded hover:bg-gray-100 transition-colors">
+                                        <i data-lucide="more-vertical" class="w-4 h-4 text-gray-400"></i>
+                                    </button>
+                                </div>
+                                <h4 class="font-medium text-gray-900 mb-1" x-text="template.name"></h4>
+                                <!-- <p class="text-sm text-gray-600 mb-2" x-text="template.category || 'Без категории'"></p> -->
+                                <p class="text-xs text-gray-500" x-text="'Использован ' + template.lastUsed"></p>
+                            </div>
+                        </template>
+                    </div>
+                </div>
+
+                <!-- Ваши электронные почты -->
+                <div class="mt-8 chart-card rounded-xl p-4 sm:p-6 card-hover">
+                    <div class="flex flex-col sm:flex-row sm:items-center justify-between mb-6 gap-4">
+                        <h3 class="text-lg font-semibold text-gray-900">Ваши электронные почты</h3>
+                        <a href="/emails/" class="text-blue-600 hover:text-blue-700 text-sm font-medium flex items-center space-x-1 transition-colors">
+                            <span>Управление почтами</span>
+                            <i data-lucide="chevron-right" class="w-4 h-4"></i>
+                        </a>
+                    </div>
+                    <div class="space-y-4">
+                        <template x-for="email in emails">
+                            <a href="/emails/" class="flex items-center justify-between p-4 border border-gray-100 rounded-lg hover:bg-gray-50 transition-colors">
+                                <div class="flex items-center space-x-4">
+                                    <div class="w-10 h-10 bg-blue-50 rounded-lg flex items-center justify-center">
+                                        <i data-lucide="mail" class="w-5 h-5 text-blue-600"></i>
+                                    </div>
+                                    <div>
+                                        <h4 class="font-medium text-gray-900" x-text="email.address"></h4>
+                                        <p class="text-sm text-gray-600" x-text="email.purpose"></p>
+                                    </div>
+                                </div>
+                                <div class="flex items-center space-x-4">
+                                    <span class="text-sm text-green-600">Активен</span>
+                                    <!-- <button class="p-1 rounded hover:bg-gray-200 transition-colors">
+                                        <i data-lucide="more-vertical" class="w-4 h-4"></i>
+                                    </button> -->
+                                </div>
+                            </a>
+                        </template>
+                        <a href="/emails/" class="flex items-center justify-between p-4 border border-gray-100 rounded-lg hover:bg-gray-50 transition-colors">
+                            <div class="flex items-center space-x-4">
+                                <div class="w-10 h-10 bg-blue-50 rounded-lg flex items-center justify-center">
+                                    <i data-lucide="plus" class="w-5 h-5 text-blue-600"></i>
+                                </div>
+                                <div>
+                                    <h4 class="font-medium text-gray-900">Добавить почту</h4>
+                                    <p class="text-sm text-gray-600">Подключить новый адрес</p>
+                                </div>
+                            </div>
+                            <span class="text-blue-600 hover:text-blue-700 text-sm font-medium">
+                                Добавить
+                            </span>
+                        </a>
+                    </div>
+                </div>
+
+                <!-- Ваши домены -->
+                <div class="mt-8 chart-card rounded-xl p-4 sm:p-6 card-hover">
+                    <div class="flex flex-col sm:flex-row sm:items-center justify-between mb-6 gap-4">
+                        <h3 class="text-lg font-semibold text-gray-900">Ваши домены</h3>
+                        <a href="/emails/" class="text-blue-600 hover:text-blue-700 text-sm font-medium flex items-center space-x-1 transition-colors">
+                            <span>Управление доменами</span>
+                            <i data-lucide="chevron-right" class="w-4 h-4"></i>
+                        </a>
+                    </div>
+                    <div class="space-y-4">
+                        <template x-if="domains.length === 0">
+                            <div class="flex flex-col items-center justify-center py-12 px-4 text-center">
+                                <div class="w-16 h-16 bg-blue-50 rounded-full flex items-center justify-center mb-4">
+                                    <i data-lucide="globe" class="w-8 h-8 text-blue-500"></i>
+                                </div>
+                                <h4 class="text-lg font-medium text-gray-900 mb-2">Нет доменов</h4>
+                                <p class="text-gray-600 mb-6 max-w-sm">Добавьте свой первый домен для отправки email-рассылок</p>
+                                <a href="/emails/" class="button-gradient text-white px-6 py-2 rounded-lg flex items-center space-x-2">
+                                    <i data-lucide="plus" class="w-4 h-4"></i>
+                                    <span>Добавить домен</span>
+                                </a>
+                            </div>
+                        </template>
+                        <template x-if="domains.length > 0">
+                            <div class="space-y-4">
+                                <template x-for="domain in domains">
+                                    <a href="/emails/" class="flex items-center justify-between p-4 border border-gray-100 rounded-lg hover:bg-gray-50 transition-colors">
+                                        <div class="flex items-center space-x-4">
+                                            <div class="w-10 h-10 bg-blue-50 rounded-lg flex items-center justify-center">
+                                                <i data-lucide="globe" class="w-5 h-5 text-blue-600"></i>
+                                            </div>
+                                            <div>
+                                                <h4 class="font-medium text-gray-900" x-text="domain.domain"></h4>
+                                                <p class="text-sm text-gray-600">Основной домен</p>
+                                            </div>
+                                        </div>
+                                        <div class="flex items-center space-x-4">
+                                            <span class="text-sm" :class="domain.isVerified ? 'text-green-600' : 'text-yellow-600'" x-text="domain.isVerified ? 'Проверен' : 'На проверке'"></span>
+                                        </div>
+                                    </a>
+                                </template>
+                                <a href="/emails/" class="flex items-center justify-between p-4 border border-gray-100 rounded-lg hover:bg-gray-50 transition-colors">
+                                    <div class="flex items-center space-x-4">
+                                        <div class="w-10 h-10 bg-blue-50 rounded-lg flex items-center justify-center">
+                                            <i data-lucide="plus" class="w-5 h-5 text-blue-600"></i>
+                                        </div>
+                                        <div>
+                                            <h4 class="font-medium text-gray-900">Добавить домен</h4>
+                                            <p class="text-sm text-gray-600">Подключить новый домен</p>
+                                        </div>
+                                    </div>
+                                    <span class="text-blue-600 hover:text-blue-700 text-sm font-medium">
+                                        Добавить
+                                    </span>
+                                </a>
+                            </div>
+                        </template>
+                    </div>
+                </div>
+
+                <!-- Статистика по доменам -->
+                <!--
+                <div class="mt-8 chart-card rounded-xl p-4 sm:p-6 card-hover">
+                    <div class="flex flex-col sm:flex-row sm:items-center justify-between mb-6 gap-4">
+                        <h3 class="text-lg font-semibold text-gray-900">Статистика по доменам</h3>
+                        <div class="flex items-center space-x-2">
+                            <button class="px-3 py-1 rounded-md text-sm font-medium bg-blue-50 text-blue-600">Неделя</button>
+                            <button class="px-3 py-1 rounded-md text-sm font-medium text-gray-600 hover:bg-gray-100">Месяц</button>
+                            <button class="px-3 py-1 rounded-md text-sm font-medium text-gray-600 hover:bg-gray-100">Год</button>
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div class="border border-gray-100 rounded-lg p-4">
+                            <h4 class="font-medium text-gray-900 mb-4">company.com</h4>
+                            <div class="space-y-3">
+                                <div class="flex items-center justify-between">
+                                    <span class="text-sm text-gray-600">Доставляемость</span>
+                                    <span class="text-sm font-medium text-gray-900">98.5%</span>
+                                </div>
+                                <div class="flex items-center justify-between">
+                                    <span class="text-sm text-gray-600">Открытия</span>
+                                    <span class="text-sm font-medium text-gray-900">45.2%</span>
+                                </div>
+                                <div class="flex items-center justify-between">
+                                    <span class="text-sm text-gray-600">Клики</span>
+                                    <span class="text-sm font-medium text-gray-900">12.8%</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="border border-gray-100 rounded-lg p-4">
+                            <h4 class="font-medium text-gray-900 mb-4">shop.company.com</h4>
+                            <div class="space-y-3">
+                                <div class="flex items-center justify-between">
+                                    <span class="text-sm text-gray-600">Доставляемость</span>
+                                    <span class="text-sm font-medium text-gray-900">97.8%</span>
+                                </div>
+                                <div class="flex items-center justify-between">
+                                    <span class="text-sm text-gray-600">Открытия</span>
+                                    <span class="text-sm font-medium text-gray-900">42.5%</span>
+                                </div>
+                                <div class="flex items-center justify-between">
+                                    <span class="text-sm text-gray-600">Клики</span>
+                                    <span class="text-sm font-medium text-gray-900">15.3%</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                -->
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Инициализация иконок Lucide
+        lucide.createIcons();
+
+        // Получаем данные из Django
+        const isAdmin = {{ is_admin|yesno:"true,false" }};
+
+        function dashboardApp() {
+            return {
+                selectedPeriod: '7d',
+                sidebarOpen: false,
+                isAdmin: isAdmin,
+                stats: [
+                    {
+                        label: 'Отправлено писем',
+                        value: '0',
+                        icon: 'mail'
+                    },
+                    {
+                        label: 'Открыто писем',
+                        value: '0',
+                        icon: 'eye'
+                    },
+                    {
+                        label: 'Переходы по ссылкам',
+                        value: '0',
+                        icon: 'mouse-pointer'
+                    },
+                    {
+                        label: 'Новые подписчики',
+                        value: '1,420',
+                        icon: 'user-plus'
+                    }
+                ],
+                campaigns: [],
+                contactLists: [],
+                templates: [],
+                emails: [],
+                domains: [],
+                activityChart: null,
+                engagementChart: null,
+
+                async init() {
+                    await this.loadStats();
+                    await this.loadCampaigns();
+                    await this.loadContactLists();
+                    await this.loadTemplates();
+                    await this.loadEmails();
+                    await this.loadDomains();
+                    // this.initCharts();
+                    
+                    // Инициализируем иконки после загрузки данных
+                    this.$nextTick(() => {
+                        lucide.createIcons();
+                    });
+                },
+
+                async loadStats() {
+                    try {
+                        console.log('Fetching stats from API...');
+                        const response = await fetch('/campaigns/api/campaigns/stats/');
+                        const data = await response.json();
+                        console.log('Raw API Response:', data);
+                        
+                        this.stats = [
+                            {
+                                label: 'Отправлено писем',
+                                value: data.sent.toLocaleString(),
+                                icon: 'mail'
+                            },
+                            {
+                                label: 'Открыто писем',
+                                value: data.opened.toLocaleString(),
+                                icon: 'eye'
+                            },
+                            {
+                                label: 'Переходы по ссылкам',
+                                value: data.clicked.toLocaleString(),
+                                icon: 'mouse-pointer'
+                            },
+                            {
+                                label: 'Новые подписчики',
+                                value: data.newSubscribers.toLocaleString(),
+                                icon: 'user-plus'
+                            }
+                        ];
+                        console.log('Processed Stats:', this.stats);
+                        
+                        // Обновляем иконки после загрузки статистики
+                        this.$nextTick(() => {
+                            lucide.createIcons();
+                        });
+                    } catch (error) {
+                        console.error('Error loading stats:', error);
+                        console.error('Error details:', error.message);
+                        // Fallback values are already set in the initial state
+                    }
+                },
+
+                async loadCampaigns() {
+                    try {
+                        const response = await fetch('/campaigns/api/campaigns/');
+                        const data = await response.json();
+                        console.log('Campaigns API Response:', data);
+                        
+                        this.campaigns = Array.isArray(data) ? data.slice(0, 4) : [];
+                        this.campaigns = this.campaigns.map(campaign => ({
+                            id: campaign.id,
+                            name: campaign.name || 'Без названия',
+                            date: new Date(campaign.created_at).toLocaleDateString('ru-RU'),
+                            status: campaign.status,
+                            sent: campaign.emails_sent ? campaign.emails_sent.toLocaleString() : '0',
+                            opened: campaign.open_rate ? campaign.open_rate.toFixed(1) + '%' : '0%',
+                            clicked: campaign.click_rate ? campaign.click_rate.toFixed(1) + '%' : '0%'
+                        }));
+                        
+                        console.log('Processed Campaigns:', this.campaigns);
+                        
+                        // Обновляем иконки после загрузки кампаний
+                        this.$nextTick(() => {
+                            lucide.createIcons();
+                        });
+                    } catch (error) {
+                        console.error('Error loading campaigns:', error);
+                        console.error('Error details:', error.message);
+                    }
+                },
+
+                async loadContactLists() {
+                    try {
+                        const response = await fetch('/lists/api/contactlists/');
+                        const data = await response.json();
+                        console.log('Contact Lists API Response:', data);
+                        
+                        this.contactLists = Array.isArray(data) ? data.slice(0, 4) : [];
+                        this.contactLists = this.contactLists.map(list => {
+                            console.log('Processing list:', list);
+                            return {
+                                id: list.id,
+                                name: list.name,
+                                contacts: list.contacts_count || list.contacts?.length || 0
+                            };
+                        });
+                        console.log('Processed Contact Lists:', this.contactLists);
+                    } catch (error) {
+                        console.error('Error loading contact lists:', error);
+                        console.error('Error details:', error.message);
+                    }
+                },
+
+                async loadTemplates() {
+                    try {
+                        const response = await fetch('/templates/api/templates/');
+                        const data = await response.json();
+                        console.log('Templates API Response:', data);
+                        
+                        this.templates = Array.isArray(data) ? data.slice(0, 4) : [];
+                        this.templates = this.templates.map(template => {
+                            console.log('Processing template:', template);
+                            return {
+                                id: template.id,
+                                name: template.title || 'Без названия',
+                                category: template.category || 'Без категории',
+                                lastUsed: this.formatLastUsed(template.updated_at || template.created_at)
+                            };
+                        });
+                        console.log('Processed Templates:', this.templates);
+                    } catch (error) {
+                        console.error('Error loading templates:', error);
+                        console.error('Error details:', error.message);
+                    }
+                },
+
+                async loadEmails() {
+                    try {
+                        const response = await fetch('/emails/api/emails/');
+                        const data = await response.json();
+                        this.emails = Array.isArray(data) ? data : [];
+                        this.emails = this.emails.map(email => ({
+                            id: email.id,
+                            address: email.email,
+                            purpose: email.purpose,
+                            isActive: email.is_active
+                        }));
+                    } catch (error) {
+                        console.error('Error loading emails:', error);
+                    }
+                },
+
+                async loadDomains() {
+                    try {
+                        const response = await fetch('/emails/api/domains/');
+                        const data = await response.json();
+                        console.log('Domains API Response:', data);
+                        
+                        this.domains = Array.isArray(data) ? data : [];
+                        this.domains = this.domains.map(domain => {
+                            console.log('Processing domain:', domain);
+                            return {
+                                id: domain.id,
+                                domain: domain.domain_name,
+                                name: domain.domain_name,
+                                purpose: 'Основной домен',
+                                isVerified: domain.is_verified || false
+                            };
+                        });
+                        console.log('Processed Domains:', this.domains);
+                    } catch (error) {
+                        console.error('Error loading domains:', error);
+                        console.error('Error details:', error.message);
+                    }
+                },
+
+                formatLastUsed(date) {
+                    if (!date) return 'Никогда не использовался';
+                    const lastUsed = new Date(date);
+                    const now = new Date();
+                    const diffDays = Math.floor((now - lastUsed) / (1000 * 60 * 60 * 24));
+                    
+                    if (diffDays === 0) return 'Сегодня';
+                    if (diffDays === 1) return 'Вчера';
+                    if (diffDays < 7) return `${diffDays} дней назад`;
+                    if (diffDays < 30) return `${Math.floor(diffDays / 7)} недель назад`;
+                    return `${Math.floor(diffDays / 30)} месяцев назад`;
+                },
+
+                getStatusColor(status) {
+                    const colors = {
+                        'active': 'bg-green-500',
+                        'draft': 'bg-blue-500',
+                        'scheduled': 'bg-yellow-500',
+                        'completed': 'bg-gray-400'
+                    };
+                    return colors[status] || 'bg-gray-400';
+                }
+            };
+        }
+    </script>
+</body>
+</html>

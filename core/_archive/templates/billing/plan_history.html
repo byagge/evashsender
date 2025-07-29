@@ -1,0 +1,98 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}История покупок - vashsender{% endblock %}
+
+{% block content %}
+<div class="min-h-screen bg-gray-50 py-12">
+    <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
+        <!-- Заголовок -->
+        <div class="text-center mb-8">
+            <h1 class="text-3xl font-bold text-gray-900 mb-2">История покупок</h1>
+            <p class="text-gray-600">Все ваши приобретенные тарифы</p>
+        </div>
+
+        {% if purchases %}
+        <div class="bg-white rounded-lg shadow-lg overflow-hidden">
+            <div class="px-6 py-4 border-b border-gray-200">
+                <h2 class="text-lg font-medium text-gray-900">Ваши тарифы</h2>
+            </div>
+            
+            <div class="divide-y divide-gray-200">
+                {% for purchase in purchases %}
+                <div class="px-6 py-4">
+                    <div class="flex items-center justify-between">
+                        <div class="flex-1">
+                            <div class="flex items-center">
+                                <h3 class="text-lg font-medium text-gray-900">{{ purchase.plan.title }}</h3>
+                                {% if purchase.is_active and not purchase.is_expired %}
+                                <span class="ml-2 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                                    Активен
+                                </span>
+                                {% elif purchase.is_expired %}
+                                <span class="ml-2 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
+                                    Истек
+                                </span>
+                                {% else %}
+                                <span class="ml-2 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+                                    Неактивен
+                                </span>
+                                {% endif %}
+                            </div>
+                            
+                            <div class="mt-2 text-sm text-gray-600">
+                                <p><strong>Период:</strong> {{ purchase.start_date|date:"d.m.Y" }} - {{ purchase.end_date|date:"d.m.Y" }}</p>
+                                <p><strong>Сумма:</strong> ₽{{ purchase.amount_paid|default:"0" }}</p>
+                                {% if purchase.payment_method %}
+                                <p><strong>Способ оплаты:</strong> {{ purchase.payment_method|title }}</p>
+                                {% endif %}
+                                {% if purchase.transaction_id %}
+                                <p><strong>ID транзакции:</strong> {{ purchase.transaction_id }}</p>
+                                {% endif %}
+                            </div>
+
+                            {% if purchase.is_active and not purchase.is_expired %}
+                            <div class="mt-2">
+                                <p class="text-sm text-gray-600">
+                                    <strong>Осталось дней:</strong> 
+                                    <span class="font-medium text-blue-600">{{ purchase.days_remaining }}</span>
+                                </p>
+                            </div>
+                            {% endif %}
+                        </div>
+                        
+                        <div class="ml-6 flex-shrink-0">
+                            <div class="text-right">
+                                <div class="text-lg font-bold text-gray-900">₽{{ purchase.plan.price }}</div>
+                                <div class="text-sm text-gray-500">{{ purchase.plan.plan_type.name }}</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% else %}
+        <div class="bg-white rounded-lg shadow-lg p-8 text-center">
+            <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+            </svg>
+            <h3 class="mt-2 text-sm font-medium text-gray-900">История покупок пуста</h3>
+            <p class="mt-1 text-sm text-gray-500">У вас пока нет приобретенных тарифов.</p>
+            <div class="mt-6">
+                <a href="{% url 'pricing' %}" class="inline-flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700">
+                    Выбрать тариф
+                </a>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Кнопка возврата -->
+        <div class="mt-8 text-center">
+            <a href="{% url 'dashboard' %}" class="inline-flex items-center px-4 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50">
+                Вернуться в панель управления
+            </a>
+        </div>
+    </div>
+</div>
+{% endblock %} 

@@ -1,0 +1,832 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Новая рассылка</title>
+    <!-- Include Tailwind CSS via CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Include Alpine.js via CDN -->
+    <script src="https://unpkg.com/alpinejs" defer></script>
+    <!-- Include Lucide icons via CDN -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        [x-cloak] { display: none !important; }
+    </style>
+</head>
+<body>
+    <!-- Main Container with Alpine.js Data Scope -->
+    <div class="min-h-screen bg-gray-50 flex" x-data="campaignForm" x-init="$watch('isSending', value => console.log('isSending changed:', value))">
+        <!-- Sidebar -->
+        {% include "dashboard/common/sidebar.html" %}
+
+        <!-- Main Content -->
+        <div class="flex-1 flex md:ml-64"">
+            <!-- Form Section -->
+            <div class="flex-1 p-8">
+                <div class="max-w-2xl">
+                    <!-- Header -->
+                    <div class="flex items-center justify-between mb-8">
+                        <div>
+                            <h1 class="text-3xl font-bold text-gray-900">Новая рассылка</h1>
+                            <p class="text-gray-600 mt-2">Создайте и отправьте свою email-рассылку</p>
+                        </div>
+                        <template x-if="saveStatus">
+                            <div class="flex items-center space-x-2 text-green-600">
+                                <i data-lucide="check" class="w-4 h-4"></i>
+                                <span class="text-sm font-medium" x-text="saveStatus"></span>
+                            </div>
+                        </template>
+                    </div>
+
+                    <!-- Form Fields -->
+                    <div class="space-y-6">
+                        <!-- Campaign Name -->
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">
+                                Название рассылки <span class="text-red-500">*</span>
+                            </label>
+                            <input
+                                type="text"
+                                class="w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+                                :class="errors.campaignName ? 'border-red-300' : 'border-gray-300'"
+                                placeholder="Введите название рассылки"
+                                x-model="formData.campaignName"
+                                @input.debounce.1000ms="handleSave()"
+                            />
+                            <template x-if="errors.campaignName">
+                                <p class="text-red-500 text-sm mt-1" x-text="errors.campaignName"></p>
+                            </template>
+                        </div>
+
+                        <!-- Template Selection -->
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">
+                                Выберите шаблон электронной почты <span class="text-red-500">*</span>
+                            </label>
+                            <div class="relative">
+                                <button
+                                    type="button"
+                                    class="w-full px-4 py-3 border border-gray-300 rounded-lg bg-white text-left flex items-center justify-between hover:border-gray-400 transition-colors"
+                                    @click="showTemplateDropdown = !showTemplateDropdown"
+                                >
+                                    <span :class="formData.templateId ? 'text-gray-900' : 'text-gray-500'">
+                                        <template x-if="formData.templateId">
+                                            <span x-text="templates.find(t => t.id === formData.templateId)?.title || 'Шаблон'"></span>
+                                        </template>
+                                        <template x-if="!formData.templateId">
+                                            <span>Выберите шаблон</span>
+                                        </template>
+                                    </span>
+                                    <i data-lucide="chevron-down" class="w-5 h-5 text-gray-400"></i>
+                                </button>
+                                <div
+                                    x-show="showTemplateDropdown"
+                                    @click.away="showTemplateDropdown = false"
+                                    class="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-10"
+                                >
+                                    <template x-if="templates.length === 0">
+                                        <div class="p-4 text-center text-gray-500">
+                                            <i data-lucide="alert-circle" class="w-5 h-5 mx-auto mb-2"></i>
+                                            <p>Нет доступных шаблонов</p>
+                                            <p class="text-sm mt-1">Пожалуйста, создайте шаблоны в разделе "Шаблоны"</p>
+                                        </div>
+                                    </template>
+                                    <template x-for="template in templates" :key="template.id">
+                                        <div
+                                            class="p-4 hover:bg-gray-50 cursor-pointer border-b border-gray-100 last:border-b-0"
+                                            @click="formData.templateId = template.id; showTemplateDropdown = false"
+                                        >
+                                            <div class="font-medium text-gray-900" x-text="template.title"></div>
+                                        </div>
+                                    </template>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Contact Lists -->
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">
+                                Выберите списки контактов <span class="text-red-500">*</span>
+                            </label>
+                            <div class="relative">
+                                <button
+                                    type="button"
+                                    class="w-full px-4 py-3 border rounded-lg bg-white text-left flex items-center justify-between hover:border-gray-400 transition-colors"
+                                    :class="errors.contactLists ? 'border-red-300' : 'border-gray-300'"
+                                    @click="showContactListDropdown = !showContactListDropdown"
+                                >
+                                    <span :class="formData.contactLists.length > 0 ? 'text-gray-900' : 'text-gray-500'">
+                                        <template x-if="formData.contactLists.length > 0">
+                                            <span x-text="`${formData.contactLists.length} list${formData.contactLists.length > 1 ? 's' : ''} selected`"></span>
+                                        </template>
+                                        <template x-if="formData.contactLists.length === 0">
+                                            <span>Выберите списки контактов</span>
+                                        </template>
+                                    </span>
+                                    <i data-lucide="chevron-down" class="w-5 h-5 text-gray-400"></i>
+                                </button>
+                                <div
+                                    x-show="showContactListDropdown"
+                                    @click.away="showContactListDropdown = false"
+                                    class="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-10"
+                                >
+                                    <template x-if="contactLists.length === 0">
+                                        <div class="p-4 text-center text-gray-500">
+                                            <i data-lucide="alert-circle" class="w-5 h-5 mx-auto mb-2"></i>
+                                            <p>Нет доступных списков контактов</p>
+                                            <p class="text-sm mt-1">Пожалуйста, создайте списки контактов в разделе "Списки контактов"</p>
+                                        </div>
+                                    </template>
+                                    <template x-for="list in contactLists" :key="list.id">
+                                        <div class="p-3 hover:bg-gray-50 cursor-pointer flex items-center space-x-3">
+                                            <input
+                                                type="checkbox"
+                                                class="w-4 h-4"
+                                                :checked="formData.contactLists.includes(list.id)"
+                                                @change="(e) => {
+                                                    if (e.target.checked) {
+                                                        formData.contactLists = [...formData.contactLists, list.id];
+                                                    } else {
+                                                        formData.contactLists = formData.contactLists.filter(id => id !== list.id);
+                                                    }
+                                                }"
+                                            />
+                                            <div class="flex-1">
+                                                <div class="font-medium text-gray-900" x-text="list.name"></div>
+                                                <div class="text-sm text-gray-500" x-text="`${list.total_contacts} contacts`"></div>
+                                            </div>
+                                        </div>
+                                    </template>
+                                </div>
+                            </div>
+                            <template x-if="errors.contactLists">
+                                <p class="text-red-500 text-sm mt-1" x-text="errors.contactLists"></p>
+                            </template>
+                        </div>
+
+                        <!-- Sender Email -->
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">
+                                Электронная почта отправителя <span class="text-red-500">*</span>
+                            </label>
+                            <div class="relative">
+                                <button
+                                    type="button"
+                                    class="w-full px-4 py-3 border rounded-lg bg-white text-left flex items-center justify-between hover:border-gray-400 transition-colors"
+                                    :class="errors.senderEmail ? 'border-red-300' : 'border-gray-300'"
+                                    @click="showSenderDropdown = !showSenderDropdown"
+                                >
+                                    <span :class="formData.senderEmail ? 'text-gray-900' : 'text-gray-500'">
+                                        <template x-if="formData.senderEmail">
+                                            <span x-text="formData.senderEmail"></span>
+                                        </template>
+                                        <template x-if="!formData.senderEmail">
+                                            <span>Выберите адрес электронной почты отправителя</span>
+                                        </template>
+                                    </span>
+                                    <i data-lucide="chevron-down" class="w-5 h-5 text-gray-400"></i>
+                                </button>
+                                <div
+                                    x-show="showSenderDropdown"
+                                    @click.away="showSenderDropdown = false"
+                                    class="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-10"
+                                >
+                                    <template x-if="senderEmails.length === 0">
+                                        <div class="p-4 text-center text-gray-500">
+                                            <i data-lucide="alert-circle" class="w-5 h-5 mx-auto mb-2"></i>
+                                            <p>Нет доступных адресов электронной почты</p>
+                                            <p class="text-sm mt-1">Пожалуйста, добавьте и подтвердите адреса в разделе "Электронные почты"</p>
+                                        </div>
+                                    </template>
+                                    <template x-for="email in senderEmails" :key="email.id">
+                                        <div
+                                            class="p-3 hover:bg-gray-50 cursor-pointer flex items-center justify-between"
+                                            @click="formData.senderEmail = email.email; showSenderDropdown = false"
+                                        >
+                                            <span class="text-gray-900" x-text="email.email"></span>
+                                            <span class="text-green-600 text-sm font-medium">Verified</span>
+                                        </div>
+                                    </template>
+                                </div>
+                            </div>
+                            <template x-if="errors.senderEmail">
+                                <p class="text-red-500 text-sm mt-1" x-text="errors.senderEmail"></p>
+                            </template>
+                        </div>
+
+                        <!-- Email Subject -->
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">
+                                Тема письма <span class="text-red-500">*</span>
+                            </label>
+                            <input
+                                type="text"
+                                class="w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+                                :class="errors.subject ? 'border-red-300' : 'border-gray-300'"
+                                placeholder="Введите тему письма"
+                                x-model="formData.subject"
+                                @input.debounce.1000ms="handleSave()"
+                            />
+                            <template x-if="errors.subject">
+                                <p class="text-red-500 text-sm mt-1" x-text="errors.subject"></p>
+                            </template>
+                        </div>
+
+                        <!-- Sender Name -->
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">
+                                Имя отправителя
+                            </label>
+                            <input
+                                type="text"
+                                class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+                                placeholder="Введите имя отправителя"
+                                x-model="formData.senderName"
+                            />
+                        </div>
+
+                        <!-- Reply-to Email -->
+                        <!--
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">
+                                Reply-to Email
+                            </label>
+                            <input
+                                type="email"
+                                class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+                                placeholder="Введите email для ответов"
+                                x-model="formData.replyTo"
+                            />
+                        </div>
+                        -->
+
+                        <!-- Scheduled Send -->
+                        <!--
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">
+                                Запланированная отправка (необязательно)
+                            </label>
+                            <div class="grid grid-cols-2 gap-4">
+                                <input
+                                    type="date"
+                                    class="px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+                                    placeholder="Выберите дату"
+                                    x-model="formData.scheduledDate"
+                                />
+                                <input
+                                    type="time"
+                                    class="px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+                                    placeholder="Выберите время"
+                                    x-model="formData.scheduledTime"
+                                />
+                            </div>
+                        </div>
+                        -->
+
+                        <!-- Action Buttons -->
+                        <div class="flex space-x-4 pt-6">
+                            <button
+                                @click="if (validateForm()) { sendCampaign() }"
+                                class="flex items-center space-x-2 bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition-colors font-medium"
+                                :disabled="isSending"
+                                :class="{'opacity-50 cursor-not-allowed': isSending}"
+                            >
+                                <i data-lucide="send" class="w-4 h-4"></i>
+                                <span x-text="isSending ? 'Отправка...' : 'Отправить'"></span>
+                            </button>
+                            <button
+                                @click="handleSave()"
+                                class="flex items-center space-x-2 bg-gray-200 text-gray-700 px-6 py-3 rounded-lg hover:bg-gray-300 transition-colors font-medium"
+                                :disabled="isSending"
+                                :class="{'opacity-50 cursor-not-allowed': isSending}"
+                            >
+                                <i data-lucide="save" class="w-4 h-4"></i>
+                                <span>Сохранить как черновик</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Preview Section -->
+            <div class="w-96 bg-white border-l border-gray-200 p-6">
+                <div class="flex items-center space-x-2 mb-6">
+                    <i data-lucide="eye" class="w-5 h-5 text-gray-600"></i>
+                    <h3 class="text-lg font-semibold text-gray-900">Предпросмотр</h3>
+                </div>
+
+                <template x-if="formData.templateId">
+                    <div class="border border-gray-200 rounded-lg p-4 bg-gray-50">
+                        <div class="text-center mb-4">
+                            <h4 class="font-semibold text-gray-900" x-text="templates.find(t => t.id === formData.templateId)?.title || 'Шаблон'"></h4>
+                        </div>
+                        <!-- Mock Email Preview -->
+                        <div class="bg-white border rounded p-4 text-sm">
+                            <div class="border-b pb-3 mb-3">
+                                <div class="font-medium">Тема: <span x-text="formData.subject || 'Тема письма'"></span></div>
+                                <div class="text-gray-600">От: <span x-text="formData.senderName || 'Имя отправителя'"></span> &lt;<span x-text="formData.senderEmail || 'email@example.com'"></span>&gt;</div>
+                            </div>
+                            <div class="space-y-3">
+                                <div class="h-4 bg-gray-200 rounded w-3/4"></div>
+                                <div class="h-4 bg-gray-200 rounded w-full"></div>
+                                <div class="h-4 bg-gray-200 rounded w-5/6"></div>
+                                <div class="h-8 bg-blue-100 rounded flex items-center justify-center mt-4">
+                                    <span class="text-blue-800 font-medium">Call to Action</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </template>
+                <template x-if="!formData.templateId">
+                    <div class="text-center text-gray-500 py-12">
+                        <i data-lucide="file-text" class="w-12 h-12 mx-auto text-gray-300 mb-4"></i>
+                        <p>Выберите шаблон для предпросмотра</p>
+                    </div>
+                </template>
+
+                <!-- Campaign Summary -->
+                <template x-if="formData.campaignName || formData.contactLists.length > 0 || formData.scheduledDate">
+                    <div class="mt-8 p-4 bg-blue-50 rounded-lg">
+                        <h4 class="font-medium text-blue-900 mb-3">Сводка рассылки</h4>
+                        <div class="space-y-2 text-sm">
+                            <template x-if="formData.campaignName">
+                                <div class="flex justify-between">
+                                    <span class="text-blue-700">Название:</span>
+                                    <span class="text-blue-900 font-medium" x-text="formData.campaignName"></span>
+                                </div>
+                            </template>
+                            <template x-if="formData.contactLists.length > 0">
+                                <div class="flex justify-between">
+                                    <span class="text-blue-700">Получатели:</span>
+                                    <span class="text-blue-900 font-medium" x-text="contactLists.filter(list => formData.contactLists.includes(list.id)).reduce((sum, list) => sum + list.total_contacts, 0) + ' контактов'"></span>
+                                </div>
+                            </template>
+                            <template x-if="formData.scheduledDate">
+                                <div class="flex justify-between">
+                                    <span class="text-blue-700">Запланировано:</span>
+                                    <span class="text-blue-900 font-medium" x-text="formData.scheduledDate + ' ' + (formData.scheduledTime || '')"></span>
+                                </div>
+                            </template>
+                        </div>
+                    </div>
+                </template>
+            </div>
+        </div>
+    </div>
+
+    <!-- Loading Modal -->
+    <div 
+        x-show="isSending" 
+        x-cloak 
+        x-transition:enter="transition ease-out duration-300"
+        x-transition:enter-start="opacity-0"
+        x-transition:enter-end="opacity-100"
+        x-transition:leave="transition ease-in duration-200"
+        x-transition:leave-start="opacity-100"
+        x-transition:leave-end="opacity-0"
+        class="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-[9999]"
+        style="backdrop-filter: blur(4px);"
+    >
+        <div class="bg-white rounded-lg p-8 w-full max-w-md text-center shadow-2xl">
+            <div class="animate-spin rounded-full h-16 w-16 border-4 border-blue-600 border-t-transparent mx-auto mb-6"></div>
+            <h3 class="text-xl font-semibold text-gray-900 mb-3">Отправка рассылки</h3>
+            <p class="text-gray-600 text-lg">Пожалуйста, подождите. Это может занять несколько минут...</p>
+            <div class="mt-4 text-sm text-gray-500">
+                <p>Не закрывайте страницу до завершения отправки</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Alpine.js Data and Logic -->
+    <script>
+        const API_BASE       = '/emails/api';
+        const CAMPAIGNS_API  = '/campaigns/api/campaigns/';
+        const TEMPLATES_API  = '/templates/api/templates/';
+        const LISTS_API      = '/lists/api/contactlists/';
+        const SENDERS_API    = '/emails/api/emails/verified/';
+      
+        function getCSRF() {
+          return document.cookie.split(';').map(c => c.trim())
+            .find(c => c.startsWith('csrftoken='))
+            ?.split('=')[1] || '';
+        }
+      
+        document.addEventListener('alpine:init', () => {
+          console.log('Alpine.js initializing...');
+          Alpine.data('campaignForm', () => ({
+            // текущая рассылка
+            campaign: null,
+            isAdmin: false,
+      
+            // словарь полей формы
+            formData: {
+              id:         null,
+              campaignName: '',
+              templateId: '',
+              contactLists: [],
+              senderEmail: '',
+              subject: '',
+              senderName: '',
+              replyTo: '',
+              scheduledDate: '',
+              scheduledTime: ''
+            },
+      
+            // выпадашки
+            showTemplateDropdown: false,
+            showContactListDropdown: false,
+            showSenderDropdown: false,
+      
+            // статусы
+            saveStatus: '',
+            errors: {},
+            isSending: false,
+      
+            // данные из API
+            templates: [],
+            contactLists: [],
+            senderEmails: [],
+      
+            init() {
+              console.log('Campaign form initializing...');
+              this.isSending = false;
+              // грузим все справочники параллельно
+              Promise.all([
+                fetch(TEMPLATES_API, { credentials: 'same-origin' }).then(r=>r.json()),
+                fetch(LISTS_API,     { credentials: 'same-origin' }).then(r=>r.json()),
+                fetch(SENDERS_API,   { credentials: 'same-origin' })
+                  .then(r => {
+                    if (!r.ok) {
+                      throw new Error(`HTTP error! status: ${r.status}`);
+                    }
+                    return r.json();
+                  })
+                  .then(data => data)
+                  .catch(error => {
+                    console.error('Error fetching sender emails:', error);
+                    return [];
+                  }),
+              ]).then(([templates, lists, senders]) => {
+                this.templates     = templates;
+                this.contactLists  = lists.map(l => ({ id: l.id, name: l.name, total_contacts: l.total_contacts }));
+                this.senderEmails  = senders;  // Данные уже отфильтрованы на бэкенде
+              });
+      
+              // Получаем ID рассылки из URL пути
+              const pathParts = window.location.pathname.split('/');
+              const campaignId = pathParts[pathParts.length - 2]; // -2 потому что последний элемент пустой
+              
+              if (campaignId && campaignId !== 'new') {
+                fetch(CAMPAIGNS_API + campaignId + '/', { credentials: 'same-origin' })
+                  .then(r=>r.json())
+                  .then(data => {
+                    this.campaign = data;
+                    
+                    // Получаем email отправителя из sender_email_detail
+                    const senderEmail = data.sender_email_detail?.email || '';
+                    
+                    // Получаем список ID контактов из contact_lists_detail
+                    const contactListIds = data.contact_lists_detail?.map(cl => cl.id) || [];
+                    
+                    Object.assign(this.formData, {
+                      id:            data.id,
+                      campaignName:  data.name,
+                      templateId:    data.template,          // id
+                      contactLists:  contactListIds,         // массив ID списков контактов
+                      senderEmail:   senderEmail,            // email отправителя
+                      subject:       data.subject,
+                      senderName:    data.sender_name,
+                      scheduledDate: data.scheduled_date,
+                      scheduledTime: data.scheduled_time
+                    });
+                  })
+                  .catch(error => {
+                    console.error('Error loading campaign:', error);
+                    this.saveStatus = 'Ошибка загрузки рассылки';
+                    setTimeout(() => this.saveStatus = '', 3000);
+                  });
+              }
+            },
+      
+            // валидация
+            validateForm() {
+              this.errors = {};
+              let isValid = true;
+
+              // Проверяем обязательные поля
+              if (!this.formData.campaignName) {
+                this.errors.campaignName = 'Введите название рассылки';
+                isValid = false;
+              }
+              
+              if (!this.formData.templateId) {
+                this.errors.template = 'Выберите шаблон письма';
+                isValid = false;
+              }
+              
+              if (!this.formData.subject) {
+                this.errors.subject = 'Введите тему письма';
+                isValid = false;
+              }
+              
+              if (!this.formData.senderEmail) {
+                this.errors.senderEmail = 'Выберите email отправителя';
+                isValid = false;
+              }
+
+              if (!this.formData.senderName) {
+                this.errors.senderName = 'Введите имя отправителя';
+                isValid = false;
+              }
+              
+              if (!this.formData.contactLists.length) {
+                this.errors.contactLists = 'Выберите хотя бы один список контактов';
+                isValid = false;
+              }
+
+              // Если есть ошибки, показываем их в статусе
+              if (!isValid) {
+                this.saveStatus = 'Пожалуйста, заполните все обязательные поля';
+                setTimeout(() => this.saveStatus = '', 3000);
+              }
+
+              return isValid;
+            },
+      
+            // авто–сохранение
+            handleSave() {
+              // Проверяем, есть ли хотя бы одно заполненное поле
+              const hasAnyField = Object.entries(this.formData).some(([key, value]) => {
+                if (key === 'id') return false; // пропускаем id
+                if (Array.isArray(value)) return value.length > 0; // для массивов проверяем длину
+                return value !== '' && value !== null; // для остальных проверяем на пустоту
+              });
+
+              if (!hasAnyField) {
+                this.saveStatus = 'Заполните хотя бы одно поле';
+                setTimeout(() => this.saveStatus = '', 3000);
+                return;
+              }
+
+              this.saveStatus = 'Saving...';
+              const method = this.formData.id ? 'PUT' : 'POST';
+              const url    = this.formData.id ? CAMPAIGNS_API + this.formData.id + '/' : CAMPAIGNS_API;
+
+              // Формируем scheduled_at из date и time если они есть
+              let scheduled_at = null;
+              if (this.formData.scheduledDate) {
+                const date = new Date(this.formData.scheduledDate);
+                if (this.formData.scheduledTime) {
+                  const [hours, minutes] = this.formData.scheduledTime.split(':');
+                  date.setHours(parseInt(hours), parseInt(minutes));
+                }
+                scheduled_at = date.toISOString();
+              }
+
+              // Собираем данные для запроса
+              const requestData = {
+                name: this.formData.campaignName || '',
+                template: this.formData.templateId || null,
+                contact_lists: this.formData.contactLists || [],
+                subject: this.formData.subject || '',
+                sender_name: this.formData.senderName || '',
+                scheduled_at: scheduled_at,
+                status: 'draft'  // Явно указываем статус черновика
+              };
+
+              // Добавляем sender_email только если он заполнен
+              if (this.formData.senderEmail) {
+                const senderEmail = this.senderEmails.find(e => e.email === this.formData.senderEmail);
+                if (senderEmail) {
+                  requestData.sender_email = senderEmail.id;
+                }
+              }
+
+              // Удаляем пустые поля, но сохраняем status
+              Object.keys(requestData).forEach(key => {
+                if (key === 'status') return; // Не удаляем статус
+                if (requestData[key] === null || requestData[key] === '' || 
+                    (Array.isArray(requestData[key]) && requestData[key].length === 0)) {
+                  delete requestData[key];
+                }
+              });
+
+              // Логируем данные запроса
+              console.log('Request data:', JSON.stringify(requestData, null, 2));
+
+              fetch(url, {
+                method,
+                credentials: 'same-origin',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'X-CSRFToken': getCSRF()
+                },
+                body: JSON.stringify(requestData)
+              })
+              .then(async res => {
+                if (!res.ok) {
+                  const error = await res.json();
+                  console.error('Server error response:', error);
+                  throw error;
+                }
+                const data = await res.json();
+                this.formData.id = data.id;
+                this.campaign = data;
+                this.saveStatus = 'Saved';
+                setTimeout(() => this.saveStatus = '', 2000);
+              })
+              .catch(err => {
+                console.error('Save error:', err);
+                this.errors = err;
+                this.saveStatus = 'Ошибка сохранения: ' + (err.detail || err.message || 'Неизвестная ошибка');
+                setTimeout(() => this.saveStatus = '', 3000);
+              });
+            },
+      
+            // отправка
+            sendCampaign() {
+              console.log('Starting sendCampaign function');
+              
+              if (!this.validateForm()) {
+                console.log('Form validation failed');
+                return;
+              }
+              
+              // Показываем модальное окно загрузки
+              console.log('Setting isSending to true');
+              this.isSending = true;
+              
+              // Проверяем наличие необходимых данных
+              const senderEmailId = this.senderEmails.find(e => e.email === this.formData.senderEmail)?.id;
+              if (!senderEmailId) {
+                console.log('No sender email found');
+                this.isSending = false;
+                this.saveStatus = 'Ошибка: не выбран email отправителя';
+                setTimeout(() => this.saveStatus = '', 3000);
+                return;
+              }
+
+              // Преобразуем Proxy в обычный массив и проверяем
+              const contactLists = Array.from(this.formData.contactLists);
+              if (!contactLists || contactLists.length === 0) {
+                console.log('No contact lists selected');
+                this.isSending = false;
+                this.saveStatus = 'Ошибка: не выбраны списки контактов';
+                setTimeout(() => this.saveStatus = '', 3000);
+                return;
+              }
+
+              // Проверяем наличие шаблона
+              if (!this.formData.templateId) {
+                console.log('No template selected');
+                this.isSending = false;
+                this.saveStatus = 'Ошибка: не выбран шаблон';
+                setTimeout(() => this.saveStatus = '', 3000);
+                return;
+              }
+
+              console.log('All validations passed, proceeding with campaign sending');
+
+              // Сначала сохраняем рассылку
+              const savePromise = this.formData.id 
+                ? Promise.resolve({ id: this.formData.id }) // Если уже есть id, используем его
+                : fetch(CAMPAIGNS_API, {
+                    method: 'POST',
+                    credentials: 'same-origin',
+                    headers: {
+                      'Content-Type': 'application/json',
+                      'X-CSRFToken': getCSRF()
+                    },
+                    body: JSON.stringify({
+                      name: this.formData.campaignName,
+                      template: this.formData.templateId,
+                      contact_lists: contactLists,
+                      sender_email: senderEmailId,
+                      subject: this.formData.subject,
+                      sender_name: this.formData.senderName,
+                      status: 'draft'
+                    })
+                  }).then(async r => {
+                    if (!r.ok) {
+                      const error = await r.json();
+                      console.error('Save error:', error);
+                      if (error.detail) {
+                        throw new Error(error.detail);
+                      }
+                      if (typeof error === 'object') {
+                        this.errors = error;
+                        throw new Error('Пожалуйста, исправьте ошибки в форме');
+                      }
+                      throw error;
+                    }
+                    return r.json();
+                  });
+
+              // После сохранения отправляем
+              savePromise
+                .then(data => {
+                  if (!data || !data.id) {
+                    throw new Error('Invalid campaign data received from server');
+                  }
+                  this.formData.id = data.id;
+                  
+                  // Сначала обновляем рассылку
+                  const updateData = {
+                    name: this.formData.campaignName,
+                    template: parseInt(this.formData.templateId),
+                    contact_lists: contactLists.map(id => parseInt(id)),
+                    sender_email: parseInt(senderEmailId),
+                    subject: this.formData.subject,
+                    sender_name: this.formData.senderName,
+                    status: 'draft'
+                  };
+
+                  console.log('Updating campaign with data:', JSON.stringify(updateData, null, 2));
+
+                  return fetch(CAMPAIGNS_API + data.id + '/', {
+                    method: 'PUT',
+                    credentials: 'same-origin',
+                    headers: {
+                      'Content-Type': 'application/json',
+                      'X-CSRFToken': getCSRF()
+                    },
+                    body: JSON.stringify(updateData)
+                  }).then(async response => {
+                    if (!response.ok) {
+                      const errorData = await response.json();
+                      console.error('Update error response:', errorData);
+                      throw new Error(errorData.detail || 'Ошибка при обновлении рассылки');
+                    }
+                    return response.json();
+                  });
+                })
+                .then(async (updatedCampaign) => {
+                  // Добавляем небольшую задержку, чтобы дать базе данных время на обновление
+                  await new Promise(resolve => setTimeout(resolve, 1000));
+                  
+                  // Проверяем, что все необходимые поля заполнены
+                  if (!updatedCampaign.sender_email || !updatedCampaign.contact_lists || updatedCampaign.contact_lists.length === 0 || !updatedCampaign.template) {
+                    console.error('Campaign validation failed:', updatedCampaign);
+                    throw new Error('Рассылка не содержит всех необходимых данных. Пожалуйста, проверьте все поля и попробуйте снова.');
+                  }
+                  
+                  // Теперь отправляем
+                  return fetch(CAMPAIGNS_API + this.formData.id + '/send/', {
+                    method: 'POST',
+                    credentials: 'same-origin',
+                    headers: { 
+                      'Content-Type': 'application/json',
+                      'X-CSRFToken': getCSRF() 
+                    },
+                    body: JSON.stringify({})  // Пустой объект, так как все данные уже в рассылке
+                  }).then(async response => {
+                    if (!response.ok) {
+                      const errorData = await response.json();
+                      console.error('Send error response:', errorData);
+                      throw new Error(errorData.detail || 'Ошибка при отправке рассылки');
+                    }
+                    return response.json();
+                  });
+                })
+                .then((response) => {
+                  // Показываем сообщение в зависимости от статуса
+                  if (response.status === 'pending') {
+                    this.saveStatus = 'Рассылка отправлена на модерацию';
+                    // Перенаправляем на страницу списка рассылок через 2.5 секунды
+                    setTimeout(() => {
+                      window.location.href = '/campaigns/';
+                    }, 2500);
+                  } else if (response.status === 'sending') {
+                    this.saveStatus = 'Рассылка успешно отправлена';
+                    // Перенаправляем на страницу списка рассылок через 2.5 секунды
+                    setTimeout(() => {
+                      window.location.href = '/campaigns/';
+                    }, 2500);
+                  }
+                })
+                .catch(error => {
+                  console.error('Send error:', error);
+                  this.saveStatus = 'Ошибка при отправке: ' + error.message;
+                  setTimeout(() => this.saveStatus = '', 3000);
+                })
+                .finally(() => {
+                  // Скрываем модальное окно загрузки
+                  this.isSending = false;
+                });
+            }
+          }));
+        });
+      
+        // создаём иконки после каждого рендера
+        document.addEventListener('alpine:initialized', () => lucide.createIcons());
+        document.addEventListener('alpine:updated',     () => lucide.createIcons());
+      </script>
+      
+
+    <!-- Initialize Lucide Icons -->
+    <script>
+        lucide.createIcons();
+    </script>
+</body>
+</html>

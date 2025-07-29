@@ -1,0 +1,382 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Покупка успешна - vashsender</title>
+    <!-- Tailwind CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <!-- Alpine.js -->
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+        
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+
+        .gradient-bg {
+            background: linear-gradient(135deg, #3B82F6 0%, #2563EB 100%);
+        }
+
+        .success-gradient {
+            background: linear-gradient(135deg, #10B981 0%, #059669 100%);
+        }
+
+        .success-card {
+            background: #ffffff;
+            border: 1px solid #e5e7eb;
+            border-radius: 16px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+        }
+
+        .success-icon {
+            width: 80px;
+            height: 80px;
+            background: linear-gradient(135deg, #10B981 0%, #059669 100%);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 24px;
+            position: relative;
+            animation: successPulse 0.6s ease-in-out;
+        }
+
+        .success-icon::before {
+            content: '';
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #10B981 0%, #059669 100%);
+            opacity: 0.3;
+            animation: ripple 1.5s ease-out infinite;
+        }
+
+        @keyframes successPulse {
+            0% { transform: scale(0.8); opacity: 0; }
+            50% { transform: scale(1.1); }
+            100% { transform: scale(1); opacity: 1; }
+        }
+
+        @keyframes ripple {
+            0% { transform: scale(1); opacity: 0.3; }
+            100% { transform: scale(2); opacity: 0; }
+        }
+
+        .fade-in {
+            animation: fadeIn 0.8s ease-in-out;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .slide-up {
+            animation: slideUp 0.6s ease-in-out 0.2s both;
+        }
+
+        @keyframes slideUp {
+            from { opacity: 0; transform: translateY(30px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .button-gradient {
+            background: #3B82F6;
+            transition: all 0.3s ease;
+        }
+
+        .button-gradient:hover {
+            background: #2563EB;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3);
+        }
+
+        .success-button {
+            background: linear-gradient(135deg, #10B981 0%, #059669 100%);
+            transition: all 0.3s ease;
+        }
+
+        .success-button:hover {
+            background: linear-gradient(135deg, #059669 0%, #047857 100%);
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
+        }
+
+        .confetti {
+            position: absolute;
+            width: 10px;
+            height: 10px;
+            background: #fbbf24;
+            animation: confetti-fall 3s linear infinite;
+        }
+
+        .confetti:nth-child(2n) {
+            background: #10b981;
+        }
+
+        .confetti:nth-child(3n) {
+            background: #3b82f6;
+        }
+
+        .confetti:nth-child(4n) {
+            background: #ef4444;
+        }
+
+        @keyframes confetti-fall {
+            0% {
+                transform: translateY(-100vh) rotate(0deg);
+                opacity: 1;
+            }
+            100% {
+                transform: translateY(100vh) rotate(720deg);
+                opacity: 0;
+            }
+        }
+
+        .feature-item {
+            display: flex;
+            align-items: center;
+            padding: 12px 0;
+            border-bottom: 1px solid #f3f4f6;
+        }
+
+        .feature-item:last-child {
+            border-bottom: none;
+        }
+
+        .feature-icon {
+            width: 20px;
+            height: 20px;
+            background: #10B981;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-right: 12px;
+            flex-shrink: 0;
+        }
+    </style>
+</head>
+<body class="bg-gray-50 min-h-screen">
+    <div x-data="successApp()" class="min-h-screen">
+        <!-- Confetti Animation -->
+        <div class="fixed inset-0 pointer-events-none overflow-hidden">
+            <template x-for="i in 50" :key="i">
+                <div class="confetti" 
+                     :style="`left: ${Math.random() * 100}%; animation-delay: ${Math.random() * 3}s; animation-duration: ${3 + Math.random() * 2}s;`">
+                </div>
+            </template>
+        </div>
+
+        <!-- Header -->
+        <header class="bg-white border-b border-gray-200 px-4 sm:px-6 py-4">
+            <div class="max-w-4xl mx-auto flex items-center justify-between">
+                <a href="/" class="flex items-center text-2xl font-bold text-gray-900 no-underline">
+                    <svg width="32" height="32" fill="none" class="mr-3" xmlns="http://www.w3.org/2000/svg">
+                        <rect x="4" y="8" width="24" height="16" rx="4" fill="#1877ff"/>
+                        <path d="M4 8l12 10L28 8" stroke="#fff" stroke-width="2"/>
+                    </svg>
+                    vashsender
+                </a>
+                <div class="flex items-center space-x-4">
+                    <a href="/dashboard/" class="text-gray-600 hover:text-gray-900 transition-colors">
+                        <i data-lucide="home" class="w-5 h-5"></i>
+                    </a>
+                    <a href="/accounts/settings/" class="text-gray-600 hover:text-gray-900 transition-colors">
+                        <i data-lucide="settings" class="w-5 h-5"></i>
+                    </a>
+                </div>
+            </div>
+        </header>
+
+        <!-- Main Content -->
+        <div class="max-w-4xl mx-auto px-4 sm:px-6 py-8">
+            <!-- Success Card -->
+            <div class="success-card p-6 sm:p-8 mb-6 fade-in">
+                <div class="text-center">
+                    <!-- Success Icon -->
+                    <div class="success-icon">
+                        <i data-lucide="check" class="w-10 h-10 text-white"></i>
+                    </div>
+
+                    <!-- Success Message -->
+                    <h1 class="text-3xl sm:text-4xl font-bold text-gray-900 mb-4 slide-up">
+                        Покупка успешна!
+                    </h1>
+                    <p class="text-lg text-gray-600 mb-8 slide-up">
+                        Ваш тариф <strong>{{ plan.title|default:"выбранный тариф" }}</strong> успешно активирован
+                    </p>
+
+                    <!-- Transaction Details -->
+                    <div class="bg-green-50 border border-green-200 rounded-xl p-6 mb-8 slide-up">
+                        <h3 class="font-semibold text-gray-900 mb-4 flex items-center justify-center">
+                            <i data-lucide="receipt" class="w-5 h-5 mr-2 text-green-600"></i>
+                            Детали транзакции
+                        </h3>
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
+                            <div class="text-center sm:text-left">
+                                <span class="text-gray-600">Сумма:</span>
+                                <span class="font-medium text-gray-900 ml-2">₽{{ plan.price|default:"0" }}</span>
+                            </div>
+                            <div class="text-center sm:text-right">
+                                <span class="text-gray-600">Статус:</span>
+                                <span class="font-medium text-green-600 ml-2">Оплачено</span>
+                            </div>
+                            <div class="text-center sm:text-left">
+                                <span class="text-gray-600">Дата:</span>
+                                <span class="font-medium text-gray-900 ml-2">{{ "now"|date:"d.m.Y H:i" }}</span>
+                            </div>
+                            <div class="text-center sm:text-right">
+                                <span class="text-gray-600">ID:</span>
+                                <span class="font-medium text-gray-900 ml-2">{{ transaction_id|default:"TEST-123456" }}</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Plan Features -->
+                    <div class="bg-gray-50 rounded-xl p-6 mb-8 slide-up">
+                        <h3 class="font-semibold text-gray-900 mb-4 flex items-center justify-center">
+                            <i data-lucide="gift" class="w-5 h-5 mr-2 text-blue-600"></i>
+                            Ваши новые возможности
+                        </h3>
+                        <div class="space-y-3">
+                            {% if plan.subscribers > 0 %}
+                            <div class="feature-item">
+                                <div class="feature-icon">
+                                    <i data-lucide="users" class="w-3 h-3 text-white"></i>
+                                </div>
+                                <span class="text-gray-700">До {{ plan.subscribers|floatformat:0 }} подписчиков</span>
+                            </div>
+                            {% endif %}
+
+                            {% if plan.emails_per_month > 0 %}
+                            <div class="feature-item">
+                                <div class="feature-icon">
+                                    <i data-lucide="mail" class="w-3 h-3 text-white"></i>
+                                </div>
+                                <span class="text-gray-700">{{ plan.emails_per_month|floatformat:0 }} писем в месяц</span>
+                            </div>
+                            {% elif plan.emails_per_month == 0 and plan.plan_type.name == 'Subscribers' %}
+                            <div class="feature-item">
+                                <div class="feature-icon">
+                                    <i data-lucide="infinity" class="w-3 h-3 text-white"></i>
+                                </div>
+                                <span class="text-gray-700">Неограниченные письма</span>
+                            </div>
+                            {% endif %}
+
+                            <div class="feature-item">
+                                <div class="feature-icon">
+                                    <i data-lucide="layout" class="w-3 h-3 text-white"></i>
+                                </div>
+                                <span class="text-gray-700">Продвинутые шаблоны</span>
+                            </div>
+
+                            <div class="feature-item">
+                                <div class="feature-icon">
+                                    <i data-lucide="bar-chart-3" class="w-3 h-3 text-white"></i>
+                                </div>
+                                <span class="text-gray-700">Детальная аналитика</span>
+                            </div>
+
+                            {% if plan.plan_type.name == 'Subscribers' %}
+                            <div class="feature-item">
+                                <div class="feature-icon">
+                                    <i data-lucide="test-tube" class="w-3 h-3 text-white"></i>
+                                </div>
+                                <span class="text-gray-700">A/B тестирование</span>
+                            </div>
+
+                            <div class="feature-item">
+                                <div class="feature-icon">
+                                    <i data-lucide="code" class="w-3 h-3 text-white"></i>
+                                </div>
+                                <span class="text-gray-700">API доступ</span>
+                            </div>
+                            {% endif %}
+                        </div>
+                    </div>
+
+                    <!-- Action Buttons -->
+                    <div class="flex flex-col sm:flex-row gap-4 slide-up">
+                        <a href="/dashboard/" class="flex-1 success-button text-white font-bold py-3 px-6 rounded-lg transition-all text-center">
+                            <i data-lucide="play" class="w-4 h-4 inline mr-2"></i>
+                            Начать работу
+                        </a>
+                        <a href="/campaigns/new/" class="flex-1 button-gradient text-white font-bold py-3 px-6 rounded-lg transition-all text-center">
+                            <i data-lucide="plus" class="w-4 h-4 inline mr-2"></i>
+                            Создать кампанию
+                        </a>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Additional Information -->
+            <div class="success-card p-6 slide-up">
+                <h3 class="font-semibold text-gray-900 mb-4 flex items-center">
+                    <i data-lucide="info" class="w-5 h-5 mr-2 text-blue-600"></i>
+                    Что дальше?
+                </h3>
+                <div class="space-y-3 text-sm text-gray-600">
+                    <div class="flex items-start">
+                        <i data-lucide="check-circle" class="w-4 h-4 text-green-500 mr-2 mt-0.5"></i>
+                        <span>Ваш тариф активен и готов к использованию</span>
+                    </div>
+                    <div class="flex items-start">
+                        <i data-lucide="check-circle" class="w-4 h-4 text-green-500 mr-2 mt-0.5"></i>
+                        <span>Чек об оплате отправлен на ваш email</span>
+                    </div>
+                    <div class="flex items-start">
+                        <i data-lucide="check-circle" class="w-4 h-4 text-green-500 mr-2 mt-0.5"></i>
+                        <span>Техническая поддержка доступна 24/7</span>
+                    </div>
+                    <div class="flex items-start">
+                        <i data-lucide="check-circle" class="w-4 h-4 text-green-500 mr-2 mt-0.5"></i>
+                        <span>Вы можете управлять подпиской в настройках аккаунта</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Quick Actions -->
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-6 slide-up">
+                <a href="/campaigns/" class="bg-white border border-gray-200 rounded-lg p-4 hover:border-blue-300 hover:shadow-md transition-all text-center">
+                    <i data-lucide="mail" class="w-8 h-8 text-blue-600 mx-auto mb-2"></i>
+                    <div class="font-medium text-gray-900">Кампании</div>
+                    <div class="text-sm text-gray-600">Управление рассылками</div>
+                </a>
+                <a href="/lists/" class="bg-white border border-gray-200 rounded-lg p-4 hover:border-blue-300 hover:shadow-md transition-all text-center">
+                    <i data-lucide="users" class="w-8 h-8 text-blue-600 mx-auto mb-2"></i>
+                    <div class="font-medium text-gray-900">Контакты</div>
+                    <div class="text-sm text-gray-600">Управление списками</div>
+                </a>
+                <a href="/templates/" class="bg-white border border-gray-200 rounded-lg p-4 hover:border-blue-300 hover:shadow-md transition-all text-center">
+                    <i data-lucide="layout" class="w-8 h-8 text-blue-600 mx-auto mb-2"></i>
+                    <div class="font-medium text-gray-900">Шаблоны</div>
+                    <div class="text-sm text-gray-600">Создание дизайнов</div>
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Инициализация иконок Lucide
+        lucide.createIcons();
+
+        function successApp() {
+            return {
+                init() {
+                    // Автоматический редирект через 10 секунд
+                    setTimeout(() => {
+                        window.location.href = '/dashboard/';
+                    }, 10000);
+                }
+            };
+        }
+    </script>
+</body>
+</html> 

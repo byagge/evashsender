@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Подтверждение покупки — vashsender</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        body { font-family: 'Inter', sans-serif; background: #f6f9fc; }
+        .divider { border-bottom: 1px solid #e3e8ee; }
+        .green-btn { background: #00b86b; }
+        .green-btn:hover { background: #009e5c; }
+        .checkbox:checked { accent-color: #00b86b; }
+    </style>
+</head>
+<body>
+<div class="min-h-screen flex flex-col md:flex-row w-full px-4 md:px-32 py-8">
+  <!-- Левая часть: Детали тарифа -->
+  <div class="md:w-1/2 w-full bg-white flex flex-col justify-between border-b md:border-b-0 md:border-r border-gray-200 px-0 md:px-8 py-8 md:py-16">
+    <div>
+      <div class="flex items-center mb-10">
+        <a href="/pricing/" class="mr-4 text-gray-400 hover:text-blue-600 transition">
+          <i data-lucide="arrow-left" class="w-6 h-6"></i>
+        </a>
+        <div class="flex items-center">
+          <div class="bg-blue-100 rounded-full p-2 mr-3">
+            <i data-lucide="mail" class="w-7 h-7 text-blue-600"></i>
+          </div>
+          <span class="text-2xl font-bold text-gray-900">vashsender</span>
+        </div>
+      </div>
+      <div class="mb-10">
+        <div class="text-gray-500 text-sm mb-1">Подписка на тариф</div>
+        <div class="flex items-end gap-2 mb-2">
+          <span class="text-4xl font-extrabold text-gray-900">₽{{ plan.price|default:"0" }}</span>
+          <span class="text-base text-gray-500 mb-1">раз в месяц</span>
+        </div>
+        <div class="text-xs text-gray-400 mb-6">Счет выставляется ежемесячно</div>
+        <div class="divider mb-4"></div>
+        <div class="flex justify-between text-gray-700 mb-2">
+          <span>{{ plan.title|default:"Тариф" }}</span>
+          <span>₽{{ plan.price|default:"0" }}</span>
+        </div>
+        <div class="flex justify-between text-gray-700 mb-2">
+          <span>Подытог</span>
+          <span>₽{{ plan.price|default:"0" }}</span>
+        </div>
+        <div class="flex justify-between text-gray-700 mb-2">
+          <span>Налог</span>
+          <span>₽0</span>
+        </div>
+        <div class="divider my-4"></div>
+        <div class="flex justify-between text-lg font-bold">
+          <span>Всего к оплате сегодня</span>
+          <span>₽{{ plan.price|default:"0" }}</span>
+        </div>
+      </div>
+      <div class="mt-10">
+        <div class="text-lg font-semibold text-gray-900 mb-2">Подробнее о тарифе</div>
+        <div class="text-gray-700 mb-2">{{ plan.description|default:"Описание тарифа отсутствует." }}</div>
+        <ul class="text-gray-700 text-sm space-y-1 mb-2">
+          {% if plan.subscribers > 0 %}
+          <li>• До {{ plan.subscribers|floatformat:0 }} подписчиков</li>
+          {% endif %}
+          {% if plan.emails_per_month > 0 %}
+          <li>• {{ plan.emails_per_month|floatformat:0 }} писем в месяц</li>
+          {% elif plan.emails_per_month == 0 and plan.plan_type.name == 'Subscribers' %}
+          <li>• Неограниченные письма</li>
+          {% endif %}
+          {% if plan.max_emails_per_day > 0 %}
+          <li>• До {{ plan.max_emails_per_day }} писем в день</li>
+          {% endif %}
+          <li>• Продвинутые шаблоны</li>
+          <li>• Детальная аналитика</li>
+          {% if plan.plan_type.name == 'Subscribers' %}
+          <li>• A/B тестирование</li>
+          <li>• API доступ</li>
+          {% endif %}
+        </ul>
+      </div>
+    </div>
+  </div>
+  <!-- Правая часть: Оформление -->
+  <div class="md:w-1/2 w-full flex flex-col justify-between bg-white px-0 md:px-8 py-8 md:py-16">
+    <form x-data="purchaseApp()" @submit.prevent="processPurchase()" class="flex flex-col h-full">
+      <div>
+        <div class="mb-8">
+          <div class="text-gray-900 font-semibold mb-1">Контактные данные</div>
+          <div class="bg-gray-100 rounded-lg px-4 py-3 text-gray-900 font-semibold">{{ request.user.email }}</div>
+        </div>
+        <div class="mb-8">
+          <div class="text-gray-900 font-semibold mb-1">Информация о тарифе</div>
+          <div class="bg-gray-100 rounded-lg px-4 py-3 text-gray-900">
+            <div class="font-medium">{{ plan.title|default:"Тариф" }}</div>
+            <div class="text-xs text-gray-500">
+              {% if plan.subscribers > 0 %}До {{ plan.subscribers|floatformat:0 }} подписчиков{% endif %}
+              {% if plan.emails_per_month > 0 %} • {{ plan.emails_per_month|floatformat:0 }} писем/мес{% endif %}
+              {% if plan.max_emails_per_day > 0 %} • до {{ plan.max_emails_per_day }} в день{% endif %}
+            </div>
+          </div>
+        </div>
+        <div class="mb-8">
+          <div class="flex items-start mb-2">
+            <input type="checkbox" id="agree" x-model="agreedToTerms" class="checkbox mt-1 h-4 w-4 text-green-600 border-gray-300 rounded">
+            <label for="agree" class="ml-2 text-sm text-gray-700">
+              Я согласен с <a href="#" class="text-blue-600 hover:underline">условиями использования</a> и <a href="#" class="text-blue-600 hover:underline">политикой конфиденциальности</a>
+            </label>
+          </div>
+        </div>
+      </div>
+      <div class="mt-auto">
+        <button type="submit" :disabled="!agreedToTerms || isProcessing"
+                class="w-full green-btn text-white font-bold py-3 px-6 rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed text-lg mb-3">
+          <span x-show="!isProcessing">
+            <i data-lucide="credit-card" class="w-5 h-5 inline mr-2"></i>
+            Подписаться
+          </span>
+          <span x-show="isProcessing" class="flex items-center">
+            <div class="loading-spinner mr-2"></div>
+            Обработка...
+          </span>
+        </button>
+        <div class="text-center text-xs text-gray-500 mt-2">Оплата производится на стороне <span class="font-semibold text-blue-700">CloudPayments</span></div>
+      </div>
+      {% csrf_token %}
+    </form>
+  </div>
+</div>
+<script>
+  lucide.createIcons();
+  function purchaseApp() {
+    return {
+      agreedToTerms: false,
+      isProcessing: false,
+      async processPurchase() {
+        if (!this.agreedToTerms) {
+          alert('Пожалуйста, согласитесь с условиями использования');
+          return;
+        }
+        this.isProcessing = true;
+        try {
+          await new Promise(resolve => setTimeout(resolve, 2000));
+          const transactionId = 'TXN-' + Date.now();
+          window.location.href = `/purchase/success/?plan_id={{ plan.id|default:"" }}&transaction_id=${transactionId}`;
+        } catch (error) {
+          alert('Произошла ошибка при обработке покупки. Попробуйте еще раз.');
+        } finally {
+          this.isProcessing = false;
+        }
+      }
+    }
+  }
+</script>
+</body>
+</html> 

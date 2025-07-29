@@ -1,0 +1,649 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Email Platform</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Alpine.js CDN -->
+    <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <!-- Lucide Icons (CDN) -->
+    <script defer src="https://unpkg.com/lucide@0.276.0/dist/umd/lucide.min.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            lucide.createIcons();
+        });
+    </script>
+    <!-- Alpine.js Data and Methods -->
+    <script>
+      document.addEventListener('DOMContentLoaded', () => {
+        lucide.createIcons();
+      });
+    
+      // Константы API
+      const API_DOMAINS = '/emails/api/domains/';
+      const API_EMAILS  = '/emails/api/emails/';
+    
+      // CSRF-хелпер
+      function getCSRFToken() {
+        return document.cookie
+          .split(';')
+          .map(c => c.trim())
+          .find(c => c.startsWith('csrftoken='))
+          ?.split('=')[1] || '';
+      }
+    
+      document.addEventListener('alpine:init', () => {
+        Alpine.data('emailPlatform', () => ({
+          // переключатель табов
+          activeSection: 'senders',
+    
+          // модалки
+          showAddDomainModal: false,
+          showAddEmailModal : false,
+          showDnsInstructions: null,
+          showDeleteDomainId: null,
+    
+          // данные
+          domains: [],
+          senderEmails: [],
+    
+          // формы
+          newDomain: '',
+          newEmail: '',
+    
+          // уведомления и спиннеры
+          notification: null,
+          isChecking: {},
+    
+          async init() {
+            await this.loadDomains();
+            await this.loadEmails();
+          },
+    
+          // --- DOMAINS ---
+          async loadDomains() {
+            try {
+              const res = await fetch(API_DOMAINS, { credentials: 'same-origin' });
+              if (!res.ok) throw new Error('Не удалось загрузить домены');
+              const data = await res.json();
+              this.domains = data.map(d => ({
+                id: d.id,
+                name: d.domain_name,
+                spf: d.spf_verified,
+                dkim: d.dkim_verified,
+                verified: d.is_verified,
+                addedDate: d.created_at.split('T')[0],
+                token: d.verification_token
+              }));
+              this.domains.forEach(d => this.isChecking[d.id] = false);
+            } catch (e) {
+              this.showNotification(e.message, 'error');
+            }
+          },
+    
+          async resendConfirmation(email) {
+            try {
+              const res = await fetch(`${API_BASE}emails/${email.id}/resend/`, {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: {
+                  'X-CSRFToken': getCSRFToken(),
+                }
+              });
+              const data = await res.json();
+              if (!res.ok) throw new Error(data.detail || 'Ошибка при повторной отправке');
+              this.showNotification(data.detail, 'success');
+            } catch (e) {
+              this.showNotification(e.message, 'error');
+            }
+          },
+    
+          async handleAddDomain() {
+            if (!this.newDomain.trim()) return;
+            try {
+              const res = await fetch(API_DOMAINS, {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'X-CSRFToken': getCSRFToken()
+                },
+                body: JSON.stringify({ domain_name: this.newDomain.trim() })
+              });
+              if (!res.ok) {
+                const err = await res.json();
+                throw new Error(err.detail || 'Ошибка при создании домена');
+              }
+              const d = await res.json();
+              this.newDomain = '';
+              this.showAddDomainModal = false;
+              this.showDnsInstructions  = d.id;
+              this.showNotification('Домен создан, настройте DNS');
+              await this.loadDomains();
+              this.activeSection = 'domains';
+            } catch (e) {
+              this.showNotification(e.message, 'error');
+            }
+          },
+    
+          async deleteDomain(id) {
+            try {
+              const res = await fetch(`${API_DOMAINS}${id}/`, {
+                method: 'DELETE',
+                credentials: 'same-origin',
+                headers: { 'X-CSRFToken': getCSRFToken() }
+              });
+              if (!res.ok) throw new Error('Не удалось удалить домен');
+              this.showNotification('Домен удалён');
+              await this.loadDomains();
+            } catch (e) {
+              this.showNotification(e.message, 'error');
+            }
+          },
+    
+          async confirmDeleteDomain() {
+            const id = this.showDeleteDomainId;
+            this.showDeleteDomainId = null;
+            await this.deleteDomain(id);
+          },
+    
+          async checkDns(id) {
+            this.isChecking[id] = true;
+            try {
+              const res = await fetch(`${API_DOMAINS}${id}/verify/`, {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: { 'X-CSRFToken': getCSRFToken() }
+              });
+              if (!res.ok) throw new Error('Ошибка проверки DNS');
+              const upd = await res.json();
+              this.showNotification('DNS проверен');
+              const idx = this.domains.findIndex(d => d.id === id);
+              if (idx !== -1) {
+                Object.assign(this.domains[idx], {
+                  spf:      upd.spf_verified,
+                  dkim:     upd.dkim_verified,
+                  verified: upd.is_verified
+                });
+              }
+            } catch (e) {
+              this.showNotification(e.message, 'error');
+            } finally {
+              this.isChecking[id] = false;
+            }
+          },
+    
+          // --- EMAILS ---
+          async loadEmails() {
+            try {
+              const res = await fetch(API_EMAILS, { credentials: 'same-origin' });
+              if (!res.ok) throw new Error('Не удалось загрузить адреса отправителей');
+              const data = await res.json();
+              console.log('Emails API response:', data); // Debug log
+              this.senderEmails = data.map(e => ({
+                id: e.id,
+                email: e.email,
+                domain: e.domain_name || '',
+                verified: e.is_verified || false
+              }));
+              console.log('Mapped sender emails:', this.senderEmails); // Debug log
+            } catch (e) {
+              console.error('Error loading emails:', e); // Debug log
+              this.showNotification(e.message, 'error');
+            }
+          },
+    
+          async handleAddEmail() {
+            if (!this.newEmail.trim()) {
+              this.showNotification('Введите адрес электронной почты', 'error');
+              return;
+            }
+            try {
+              const res = await fetch(API_EMAILS, {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'X-CSRFToken': getCSRFToken()
+                },
+                body: JSON.stringify({ email: this.newEmail.trim() })
+              });
+              
+              const data = await res.json();
+              if (!res.ok) {
+                throw new Error(data.detail || data.message || 'Ошибка при создании почты');
+              }
+              
+              this.newEmail = '';
+              this.showAddEmailModal = false;
+              this.showNotification('Адрес отправителя добавлен, проверьте свой ящик');
+              await this.loadEmails();
+            } catch (e) {
+              console.error('Error adding email:', e); // Debug log
+              this.showNotification(e.message, 'error');
+            }
+          },
+    
+          async deleteEmail(id) {
+            try {
+              const res = await fetch(`${API_EMAILS}${id}/`, {
+                method: 'DELETE',
+                credentials: 'same-origin',
+                headers: { 'X-CSRFToken': getCSRFToken() }
+              });
+              if (!res.ok) throw new Error('Не удалось удалить почту');
+              this.showNotification('Адрес отправителя удален');
+              await this.loadEmails();
+            } catch (e) {
+              this.showNotification(e.message, 'error');
+            }
+          },
+    
+          resendConfirmation(email) {
+            // здесь можно вызвать свой эндпоинт или просто:
+            this.showNotification(`Письмо подтверждения отправлено на ${email.email}`);
+          },
+    
+          // Копирование и уведомления
+          copyToClipboard(txt) {
+            navigator.clipboard.writeText(txt);
+            this.showNotification('Скопировано');
+          },
+          showNotification(msg, type = 'success') {
+            this.notification = { message: msg, type };
+            setTimeout(() => this.notification = null, 3000);
+          },
+          get selectedDomain() {
+            return this.domains.find(d => d.id === this.showDnsInstructions) || {};
+          }
+        }));
+      });
+    
+      // Переинициализация иконок
+      document.addEventListener('alpine:initialized', () => lucide.createIcons());
+      document.addEventListener('alpine:updated',     () => lucide.createIcons());
+    </script>    
+</head>
+<body x-data="emailPlatform" x-init="init()" class="font-inter">
+
+    {% include "dashboard/common/sidebar.html" %}
+
+    <div class="main-content md:ml-64"">
+        <!-- Main Content: всё, что было справа от sidebar -->
+        <div class="flex-1 flex flex-col overflow-hidden">
+            <div class="bg-white border-b border-gray-200 px-8 py-6">
+                <!-- Заголовок   -->
+                <h2
+                  x-text="
+                    activeSection === 'senders'
+                      ? 'Адреса отправителей'
+                      : activeSection === 'domains'
+                        ? 'Домены отправителя'
+                        : 'Dashboard'
+                  "
+                  class="text-2xl font-semibold text-gray-900"
+                ></h2>
+              
+                <!-- Табы -->
+                  <button
+                    @click="activeSection = 'senders'"
+                    :class="activeSection === 'senders'
+                      ? 'pb-2 border-b-2 border-blue-600 text-blue-600'
+                      : 'pb-2 text-gray-600 hover:text-gray-800'"
+                    class="font-medium transition-colors"
+                    style="margin-right: 10px; margin-top: 15px;"
+                  >
+                    Адреса отправителей
+                  </button>
+                  <button
+                    @click="activeSection = 'domains'"
+                    :class="activeSection === 'domains'
+                      ? 'pb-2 border-b-2 border-blue-600 text-blue-600'
+                      : 'pb-2 text-gray-600 hover:text-gray-800'"
+                    class="font-medium transition-colors"
+                  >
+                    Домены
+                  </button>
+                </div>
+                <div class="flex-1 overflow-auto p-8">
+                    <!-- Domains Section -->
+                    <template x-if="activeSection === 'domains'">
+                        <div>
+                            <div class="flex justify-between items-center mb-6">
+                                <p class="text-gray-600">Управляйте и подтверждайте домены отправителей</p>
+                                <button x-on:click="showAddDomainModal = true" class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 flex items-center transition-colors">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 mr-2" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-plus-icon lucide-plus"><path d="M5 12h14"/><path d="M12 5v14"/></svg>
+                                    Добавить домен
+                                </button>
+                                
+                            </div>
+                            
+                            <div class="grid gap-4">
+                                <template x-for="domain in domains" :key="domain.id">
+                                    <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-200">
+                                        <div class="flex items-center justify-between">
+                                            <div class="flex-1">
+                                                <div class="flex items-center mb-2">
+                                                    <h3 class="text-lg font-semibold text-gray-900 mr-3" x-text="domain.name"></h3>
+                                                    <span :class="domain.verified ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'" class="px-2 py-1 rounded-full text-xs font-medium">
+                                                        <span x-text="domain.verified ? 'Подтвержден' : 'Не подтвержден'"></span>
+                                                    </span>
+                                                </div>
+                                                <div class="flex items-center space-x-4 mb-3">
+                                                    <!-- SPF -->
+                                                    <div class="flex items-center">
+                                                      <span class="text-sm text-gray-600 mr-2">SPF:</span>
+                                                      <template x-if="domain.spf">
+                                                        <!-- Green check -->
+                                                        <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                                                d="M5 13l4 4L19 7" />
+                                                        </svg>
+                                                      </template>
+                                                      <template x-if="!domain.spf">
+                                                        <!-- Red cross -->
+                                                        <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                                                d="M6 18L18 6M6 6l12 12" />
+                                                        </svg>
+                                                      </template>
+                                                    </div>
+                                                  
+                                                    <!-- DKIM -->
+                                                    <div class="flex items-center">
+                                                      <span class="text-sm text-gray-600 mr-2">DKIM:</span>
+                                                      <template x-if="domain.dkim">
+                                                        <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                                                d="M5 13l4 4L19 7" />
+                                                        </svg>
+                                                      </template>
+                                                      <template x-if="!domain.dkim">
+                                                        <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                                                d="M6 18L18 6M6 6l12 12" />
+                                                        </svg>
+                                                      </template>
+                                                    </div>
+                                                  </div>
+                                                <p class="text-sm text-gray-500">Добавлено: <span x-text="domain.addedDate"></span></p>
+                                            </div>
+                                            <div class="flex items-center space-x-2">
+                                                <button
+                                                    x-on:click="checkDns(domain.id)"
+                                                    :disabled="isChecking[domain.id]"
+                                                    class="px-3 py-2 text-blue-600 border border-blue-600 rounded-lg hover:bg-blue-50 flex items-center transition-colors disabled:opacity-50"
+                                                    >
+                                                        <!-- Heroicons "refresh" path -->
+                                                        
+                                                    <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 mr-2" :class="isChecking[domain.id] ? 'animate-spin' : ''" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.25" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-refresh-cw-icon lucide-refresh-cw"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/></svg>
+                                                    Проверить DNS
+                                                </button>
+
+                                                <button 
+                                                    x-on:click="showDnsInstructions = domain.id" 
+                                                    class="px-3 py-2 text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50"
+                                                >
+                                                Настроить
+                                                </button>
+
+                                                <!-- вместо прямого вызова deleteDomain(id) -->
+                                                <button
+                                                    x-on:click="showDeleteDomainId = domain.id"
+                                                    class="p-2 text-red-500 hover:text-red-700 hover:bg-red-50 rounded-lg transition-colors"
+                                                    title="Удалить домен"
+                                                >
+                                                    <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-trash2-icon lucide-trash-2"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/></svg>
+                                                </button>
+                                                <div class="relative">
+                                                    <button class="p-2 text-gray-400 hover:text-gray-600">
+                                                        <i data-lucide="more-horizontal" class="w-4 h-4"></i>
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </template>
+                            </div>
+                        </div>
+                    </template>
+
+                    <!-- Senders Section -->
+                    <template x-if="activeSection === 'senders'">
+                        <div>
+                            <div class="flex justify-between items-center mb-6">
+                                <p class="text-gray-600">Управляйте адресами электронной почты отправителей</p>
+                                <button 
+                                  @click="showAddEmailModal = true" 
+                                  class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 flex items-center transition-colors"
+                                >
+                                  <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 mr-2" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-plus-icon lucide-plus"><path d="M5 12h14"/><path d="M12 5v14"/></svg>
+                                  Добавить адрес отправителя
+                                </button>
+                            </div>
+                            <div class="grid gap-4">
+                                <template x-for="email in senderEmails" :key="email.id">
+                                    <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-200">
+                                        <div class="flex items-center justify-between">
+                                            <div class="flex-1">
+                                                <div class="flex items-center mb-2">
+                                                    <h3 class="text-lg font-semibold text-gray-900 mr-3" x-text="email.email"></h3>
+                                                    <span :class="email.verified ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'" class="px-2 py-1 rounded-full text-xs font-medium">
+                                                        <span x-text="email.verified ? 'Verified' : 'Pending'"></span>
+                                                    </span>
+                                                </div>
+                                                <p class="text-sm text-gray-500">Домен: <span x-text="email.domain"></span></p>
+                                            </div>
+                                            <div class="flex items-center space-x-2">
+                                                <template x-if="!email.verified">
+                                                    <button 
+                                                        x-on:click="resendConfirmation(email)" 
+                                                        class="px-3 py-2 text-blue-600 border border-blue-600 rounded-lg hover:bg-blue-50 flex items-center transition-colors"
+                                                    >
+                                                        <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 mr-2" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-send-icon lucide-send"><path d="M14.536 21.686a.5.5 0 0 0 .937-.024l6.5-19a.496.496 0 0 0-.635-.635l-19 6.5a.5.5 0 0 0-.024.937l7.93 3.18a2 2 0 0 1 1.112 1.11z"/><path d="m21.854 2.147-10.94 10.939"/></svg>
+                                                        Отправить повторно
+                                                    </button>
+                                                </template>
+                                                <button 
+                                                    x-on:click="deleteEmail(email.id)" 
+                                                    class="p-2 text-red-500 hover:text-red-600"
+                                                >
+                                                <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-trash2-icon lucide-trash-2"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/></svg>
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </template>
+                            </div>
+                        </div>
+                    </template>
+
+                   
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add Domain Modal -->
+    <template x-if="showAddDomainModal">
+        <div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div class="bg-white rounded-2xl p-6 w-full max-w-md">
+                <h3 class="text-lg font-semibold mb-4">Добавить новый домен</h3>
+                <input 
+                    type="text" 
+                    x-model="newDomain" 
+                    placeholder="example.com" 
+                    class="w-full p-3 border border-gray-300 rounded-lg mb-4 focus:ring-2 focus:ring-blue-500 focus:border-transparent" 
+                />
+                <div class="flex space-x-3">
+                    <button 
+                        x-on:click="handleAddDomain()" 
+                        class="flex-1 bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700 transition-colors"
+                    >
+                        Добавить домен
+                    </button>
+                    <button 
+                        x-on:click="showAddDomainModal = false" 
+                        class="flex-1 border border-gray-300 py-2 rounded-lg hover:bg-gray-50 transition-colors"
+                    >
+                        Отмена
+                    </button>
+                </div>
+            </div>
+        </div>
+    </template>
+
+    <!-- Add Email Modal -->
+    <template x-if="showAddEmailModal">
+        <div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div class="bg-white rounded-2xl p-6 w-full max-w-md">
+                <h3 class="text-lg font-semibold mb-4">Добавить адрес электронной почты отправителя</h3>
+                <input 
+                    type="email" 
+                    x-model="newEmail" 
+                    placeholder="hello@example.com" 
+                    class="w-full p-3 border border-gray-300 rounded-lg mb-4 focus:ring-2 focus:ring-blue-500 focus:border-transparent" 
+                />
+                <div class="flex space-x-3">
+                    <button 
+                        x-on:click="handleAddEmail()" 
+                        class="flex-1 bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700 transition-colors"
+                    >
+                    Добавить email
+                    </button>
+                    <button 
+                        x-on:click="showAddEmailModal = false" 
+                        class="flex-1 border border-gray-300 py-2 rounded-lg hover:bg-gray-50 transition-colors"
+                    >
+                        Отмена
+                    </button>
+                </div>
+            </div>
+        </div>
+    </template>
+
+    <!-- DNS Instructions Modal -->
+    <div x-show="showDnsInstructions" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+        <div class="bg-white rounded-2xl p-6 w-full max-w-2xl max-h-[80vh] overflow-y-auto">
+            <div class="flex justify-between items-center mb-6">
+                <h3 class="text-xl font-semibold">Инструкции по настройке DNS</h3>
+                <button
+                    @click="showDnsInstructions = null"
+                    class="text-gray-400 hover:text-gray-600"
+                >
+                    <i data-lucide="x" class="w-6 h-6"></i>
+                </button>
+            </div>
+            <div class="space-y-6">
+                <div class="bg-blue-50 p-4 rounded-lg">
+                    <div class="flex items-center mb-2">
+                        <i data-lucide="alert-circle" class="w-5 h-5 text-blue-600 mr-2"></i>
+                        <h4 class="font-semibold text-blue-800">SPF-запись</h4>
+                    </div>
+                    <p class="text-sm text-blue-700 mb-3">Добавьте эту TXT-запись в свой DNS:</p>
+                    <div class="bg-white p-3 rounded border flex items-center justify-between">
+                        <code class="text-sm">v=spf1 include:emailpro.com ~all</code>
+                        <button
+                            @click="copyToClipboard('v=spf1 include:emailpro.com ~all')"
+                            class="text-blue-600 hover:text-blue-700"
+                        >
+                            <i data-lucide="copy" class="w-4 h-4"></i>
+                        </button>
+                    </div>
+                </div>
+                <div class="bg-green-50 p-4 rounded-lg">
+                    <div class="flex items-center mb-2">
+                        <i data-lucide="shield" class="w-5 h-5 text-green-600 mr-2"></i>
+                        <h4 class="font-semibold text-green-800">DKIM-запись</h4>
+                    </div>
+                    <p class="text-sm text-green-700 mb-3">Добавьте эту TXT-запись с селектором «ep1»:</p>
+                    <div class="bg-white p-3 rounded border">
+                        <div class="flex items-center justify-between mb-2">
+                            <span class="text-sm font-medium">Название:</span>
+                            <div class="flex items-center">
+                                <code class="text-sm" x-text="selectedDomain.dkim_dns_record ? selectedDomain.dkim_dns_record.split(' ')[0] : '—'"></code>
+                                <button
+                                    @click="copyToClipboard(selectedDomain.dkim_dns_record ? selectedDomain.dkim_dns_record.split(' ')[0] : '')"
+                                    class="ml-2 text-green-600 hover:text-green-700"
+                                >
+                                    <i data-lucide="copy" class="w-4 h-4"></i>
+                                </button>
+                            </div>
+                        </div>
+                        <div class="flex items-start justify-between">
+                            <span class="text-sm font-medium">Значение:</span>
+                            <div class="flex items-start ml-2">
+                                <code class="text-sm break-all" x-text="selectedDomain.dkim_dns_record ? selectedDomain.dkim_dns_record.split('TXT ')[1] : '—'"></code>
+                                <button
+                                    @click="copyToClipboard(selectedDomain.dkim_dns_record ? selectedDomain.dkim_dns_record.split('TXT ')[1] : '')"
+                                    class="ml-2 text-green-600 hover:text-green-700 flex-shrink-0"
+                                >
+                                    <i data-lucide="copy" class="w-4 h-4"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="text-sm text-gray-600">
+                    <p class="mb-2">После добавления этих записей DNS:</p>
+                    <ul class="list-disc list-inside space-y-1">
+                        <li>Распространение изменений DNS может занять до 48 часов.</li>
+                        <li>Нажмите «Проверить DNS», чтобы проверить настройки.</li>
+                        <li>Обе записи должны быть проверены перед отправкой электронных писем.</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Notification Toast -->
+    <div
+        x-show="notification"
+        x-transition.opacity.duration.300ms
+        class="fixed top-4 right-4 bg-white border border-gray-200 rounded-lg shadow-lg p-4 z-50"
+    >
+        <div class="flex items-center">
+            <template x-if="notification.type === 'success'">
+                <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 mr-3 text-green-500" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-circle-check-big-icon lucide-circle-check-big"><path d="M21.801 10A10 10 0 1 1 17 3.335"/><path d="m9 11 3 3L22 4"/></svg>
+            </template>
+            <template x-if="notification.type !== 'success'">
+                <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 mr-3 text-red-500" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-circle-alert-icon lucide-circle-alert"><circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="8" y2="12"/><line x1="12" x2="12.01" y1="16" y2="16"/></svg>
+            </template>
+            <span class="text-gray-900" x-text="notification.message"></span>
+        </div>
+    </div>
+
+    <!-- Confirm Delete Domain Modal -->
+    <div
+    x-show="showDeleteDomainId !== null"
+    x-cloak
+    class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
+    >
+    <div class="bg-white rounded-lg p-6 w-full max-w-md">
+        <h3 class="text-lg font-semibold mb-4">Удалить домен</h3>
+        <p class="text-gray-600 mb-6">
+        Вы уверены, что хотите удалить этот домен? Это действие нельзя будет отменить.
+        </p>
+        <div class="flex space-x-3">
+        <!-- Отмена -->
+        <button
+            x-on:click="showDeleteDomainId = null"
+            class="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50"
+        >
+            Отмена
+        </button>
+        <!-- Подтверждение -->
+        <button
+            x-on:click="confirmDeleteDomain()"
+            class="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
+        >
+            Удалить
+        </button>
+        </div>
+    </div>
+    </div>
+
+</body>
+</html>
