@@ -223,13 +223,15 @@ ACCOUNT_SIGNUP_FORM_CLASS = 'accounts.forms.CustomSignupForm'
 REQUIRE_EMAIL_VERIFICATION = False
 
 # Email settings
-EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
+EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
 EMAIL_HOST = 'localhost'
 EMAIL_PORT = 25
-EMAIL_USE_TLS = False
+EMAIL_USE_TLS = False  # Обычно локальный Postfix не требует TLS, проверьте свою конфигурацию
+EMAIL_USE_SSL = False
 EMAIL_HOST_USER = ''
 EMAIL_HOST_PASSWORD = ''
-DEFAULT_FROM_EMAIL = 'no-reply@vashsender.ru'
+DEFAULT_FROM_EMAIL = 'noreply@vashsender.ru'
+SERVER_EMAIL = DEFAULT_FROM_EMAIL  # от этого адреса Django шлёт системные письма
 
 # Custom error pages
 HANDLER404 = 'core.error_handlers.handler404'
