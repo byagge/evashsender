@@ -5,10 +5,11 @@
         <!-- Логотип / Бренд -->
         <div class="p-6 pb-4">
             <div class="flex items-center space-x-3">
-                <div class="w-8 h-8 bg-gradient-to-br from-blue-500 to-blue-600 rounded-lg flex items-center justify-center shadow-lg">
-                    <i data-lucide="mail" class="w-4 h-4 text-white"></i>
-                </div>
-                <h2 class="text-xl font-bold text-gray-800">Mail</h2>
+                <svg width="32" height="32" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <rect x="4" y="8" width="24" height="16" rx="4" fill="#1877ff"/>
+                    <path d="M4 8l12 10L28 8" stroke="#fff" stroke-width="2"/>
+                </svg>
+                <h2 class="text-xl font-bold text-gray-800">vashsender</h2>
             </div>
         </div>
         <!-- Навигация -->
@@ -102,18 +103,65 @@
             </template>
         </nav>
         <!-- Профиль пользователя -->
-        <div class="mt-auto p-4 border-t border-gray-200 bg-gray-50/50">
-            <div class="flex items-center space-x-3 px-3 py-2 rounded-xl hover:bg-white/80 transition-all duration-200 cursor-pointer group">
-                <div class="w-10 h-10 bg-gradient-to-br from-blue-500 to-blue-600 rounded-full flex items-center justify-center shadow-md">
-                    <span class="text-white font-medium text-sm">АП</span>
+        <div class="mt-auto p-4 border-t border-gray-200 bg-gray-50/50" x-data="{ profileMenuOpen: false }">
+            <div class="relative">
+                <div class="flex items-center space-x-3 px-3 py-2 rounded-xl hover:bg-white/80 transition-all duration-200 cursor-pointer group" @click="profileMenuOpen = !profileMenuOpen">
+                    <div class="w-10 h-10 bg-gradient-to-br from-blue-500 to-blue-600 rounded-full flex items-center justify-center shadow-md">
+                        <span class="text-white font-medium text-sm">
+                            {% if user.full_name %}
+                                {{ user.full_name|slice:":2"|upper }}
+                            {% else %}
+                                {{ user.email|slice:":2"|upper }}
+                            {% endif %}
+                        </span>
+                    </div>
+                    <div class="flex-1 min-w-0">
+                        <p class="text-gray-800 font-medium text-sm truncate">
+                            {% if user.full_name %}
+                                {{ user.full_name }}
+                            {% else %}
+                                {{ user.email }}
+                            {% endif %}
+                        </p>
+                        <p class="text-gray-500 text-xs truncate">{{ user.email }}</p>
+                        {% if user.current_plan %}
+                            <p class="text-blue-600 text-xs truncate">{{ user.current_plan.title }}</p>
+                        {% else %}
+                            <p class="text-gray-400 text-xs truncate">Бесплатный план</p>
+                        {% endif %}
+                    </div>
+                    <button class="opacity-60 group-hover:opacity-100 transition-opacity duration-200">
+                        <i data-lucide="chevron-down" class="w-4 h-4 text-gray-500"></i>
+                    </button>
                 </div>
-                <div class="flex-1 min-w-0">
-                    <p class="text-gray-800 font-medium text-sm truncate">Окулов Павел Миронович</p>
-                    <p class="text-gray-500 text-xs truncate">pavel@company.com</p>
+                
+                <!-- Выпадающее меню профиля -->
+                <div x-show="profileMenuOpen" 
+                     x-transition:enter="transition ease-out duration-200"
+                     x-transition:enter-start="opacity-0 scale-95"
+                     x-transition:enter-end="opacity-100 scale-100"
+                     x-transition:leave="transition ease-in duration-150"
+                     x-transition:leave-start="opacity-100 scale-100"
+                     x-transition:leave-end="opacity-0 scale-95"
+                     class="absolute bottom-full left-0 right-0 mb-2 bg-white rounded-lg shadow-lg border border-gray-200 py-2 z-50">
+                    
+                    <a href="/accounts/settings/" class="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors">
+                        <i data-lucide="user" class="w-4 h-4 mr-3 text-gray-500"></i>
+                        Профиль
+                    </a>
+                    
+                    <a href="/accounts/settings/" class="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors">
+                        <i data-lucide="settings" class="w-4 h-4 mr-3 text-gray-500"></i>
+                        Настройки
+                    </a>
+                    
+                    <div class="border-t border-gray-100 my-1"></div>
+                    
+                    <a href="/accounts/logout/" class="flex items-center px-4 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors">
+                        <i data-lucide="log-out" class="w-4 h-4 mr-3 text-red-500"></i>
+                        Выйти
+                    </a>
                 </div>
-                <button class="opacity-60 group-hover:opacity-100 transition-opacity duration-200">
-                    <i data-lucide="more-horizontal" class="w-4 h-4 text-gray-500"></i>
-                </button>
             </div>
         </div>
     </div>
@@ -125,5 +173,16 @@
         if (typeof lucide !== 'undefined') {
             lucide.createIcons();
         }
+        
+        // Закрытие меню профиля при клике вне его
+        document.addEventListener('click', function(event) {
+            const profileMenu = document.querySelector('[x-data*="profileMenuOpen"]');
+            if (profileMenu && !profileMenu.contains(event.target)) {
+                const alpineComponent = Alpine.$data(profileMenu);
+                if (alpineComponent && alpineComponent.profileMenuOpen) {
+                    alpineComponent.profileMenuOpen = false;
+                }
+            }
+        });
     });
 </script> 

@@ -88,6 +88,7 @@ TEMPLATES = [
         "BACKEND": "django.template.backends.django.DjangoTemplates",
         "DIRS": [
             os.path.join(PROJECT_DIR, "templates"),
+            os.path.join(BASE_DIR, "templates"),  # Добавляем путь к шаблонам в корне проекта
         ],
         "APP_DIRS": True,
         "OPTIONS": {
@@ -229,3 +230,10 @@ EMAIL_USE_TLS = False
 EMAIL_HOST_USER = ''
 EMAIL_HOST_PASSWORD = ''
 DEFAULT_FROM_EMAIL = 'no-reply@vashsender.ru'
+
+# Custom error pages
+HANDLER404 = 'core.error_handlers.handler404'
+HANDLER500 = 'core.error_handlers.handler500'
+HANDLER403 = 'core.error_handlers.handler403'
+HANDLER400 = 'core.error_handlers.handler400'
+HANDLER401 = 'core.error_handlers.handler401'

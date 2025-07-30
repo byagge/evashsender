@@ -1,339 +1,177 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="ru">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Подтвердите вашу электронную почту</title>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="https://site-assets.fontawesome.com/releases/v6.7.2/css/all.css">
+    <title>Подтвердите вашу электронную почту - vashsender</title>
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-
-        body {
-            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-            background: linear-gradient(135deg, #F5F7FA 0%, #E8F2FF 100%);
-            min-height: 100vh;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            padding: 20px;
-            color: #1a1a1a;
-        }
-
-        .confirmation-container {
-            background: #FFFFFF;
-            border-radius: 24px;
-            box-shadow: 0 20px 60px rgba(45, 108, 223, 0.08), 0 8px 24px rgba(0, 0, 0, 0.04);
-            padding: 48px 40px;
-            max-width: 480px;
-            width: 100%;
-            text-align: center;
-            position: relative;
-            overflow: hidden;
-        }
-
-       
-
-        .icon-container {
-            margin-bottom: 32px;
-            position: relative;
-        }
-
-        .email-icon {
-            width: 80px;
-            height: 80px;
-            margin: 0 auto 16px;
-            background: linear-gradient(135deg, #2D6CDF 0%, #4A90E2 100%);
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            position: relative;
-            animation: pulse 2s infinite;
-        }
-
-        .email-icon::before {
-            content: '✉';
-            font-size: 36px;
-            color: #FFFFFF;
-        }
-
-        .check-badge {
-            position: absolute;
-            bottom: -4px;
-            right: -4px;
-            width: 32px;
-            height: 32px;
-            background: #FF7A00;
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            border: 3px solid #FFFFFF;
-            box-shadow: 0 4px 12px rgba(255, 122, 0, 0.3);
-        }
-
-        .check-badge::before {
-            content: '✓';
-            font-size: 16px;
-            color: #FFFFFF;
-            font-weight: bold;
-        }
-
-        @keyframes pulse {
-            0%, 100% { transform: scale(1); }
-            50% { transform: scale(1.05); }
-        }
-
-        .floating-elements {
-            position: absolute;
-            top: 20px;
-            right: 20px;
-            opacity: 0.1;
-        }
-
-        .floating-elements::before {
-            content: '✉ ✉ ✉';
-            font-size: 24px;
-            color: #2D6CDF;
-            letter-spacing: 8px;
-            animation: float 3s ease-in-out infinite;
-        }
-
-        @keyframes float {
-            0%, 100% { transform: translateY(0px); }
-            50% { transform: translateY(-10px); }
-        }
-
-        .title {
-            font-size: 32px;
-            font-weight: 700;
-            color: #1a1a1a;
-            margin-bottom: 16px;
-            line-height: 1.2;
-        }
-
-        .description {
-            font-size: 16px;
-            line-height: 1.6;
-            color: #6B7280;
-            margin-bottom: 24px;
-            max-width: 360px;
-            margin-left: auto;
-            margin-right: auto;
-        }
-
-        .secondary-text {
-            font-size: 14px;
-            color: #9CA3AF;
-            margin-bottom: 32px;
-            line-height: 1.5;
-        }
-
-        .button-group {
-            display: flex;
-            flex-direction: column;
-            gap: 12px;
-            margin-bottom: 24px;
-        }
-
-        .btn {
-            padding: 14px 32px;
-            border-radius: 12px;
-            font-size: 16px;
-            font-weight: 600;
-            text-decoration: none;
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            gap: 8px;
-            transition: all 0.3s ease;
-            cursor: pointer;
-            border: none;
-            min-height: 48px;
-        }
-
-        .btn-primary {
-            background: linear-gradient(135deg, #2D6CDF 0%, #4A90E2 100%);
-            color: #FFFFFF;
-            box-shadow: 0 4px 16px rgba(45, 108, 223, 0.3);
-        }
-
-        .btn-primary:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 8px 24px rgba(45, 108, 223, 0.4);
-        }
-
-        .btn-secondary {
-            background: #F5F7FA;
-            color: #6B7280;
-            border: 1px solid #E5E7EB;
-        }
-
-        .btn-secondary:hover {
-            background: #E5E7EB;
-            color: #374151;
-            transform: translateY(-1px);
-        }
-
-        .help-text {
-            font-size: 13px;
-            color: #9CA3AF;
-            margin-top: 24px;
-            padding-top: 24px;
-            border-top: 1px solid #F3F4F6;
-        }
-
-        .help-text a {
-            color: #2D6CDF;
-            text-decoration: none;
-            font-weight: 500;
-        }
-
-        .help-text a:hover {
-            text-decoration: underline;
-        }
-
-        /* Mobile Responsiveness */
-        @media (max-width: 480px) {
-            .confirmation-container {
-                padding: 32px 24px;
-                margin: 0 16px;
-                border-radius: 20px;
-            }
-
-            .title {
-                font-size: 28px;
-            }
-
-            .description {
-                font-size: 15px;
-            }
-
-            .btn {
-                padding: 12px 24px;
-                font-size: 15px;
-            }
-
-            .email-icon {
-                width: 70px;
-                height: 70px;
-            }
-
-            .email-icon::before {
-                font-size: 32px;
-            }
-        }
-
-        @media (max-width: 320px) {
-            .confirmation-container {
-                padding: 24px 20px;
-            }
-            
-            .title {
-                font-size: 24px;
-            }
-        }
+        body { font-family: 'Montserrat', Arial, sans-serif; }
     </style>
 </head>
-<body>
-    <div class="confirmation-container">
-        <div class="floating-elements"></div>
-        
-        <div class="icon-container">
-            <div class="email-icon">
-                <div class="check-badge"></div>
+<body class="bg-[#f5f6fa] text-[#222] min-h-screen">
+    <!-- Header -->
+    <header class="flex items-center justify-between px-6 md:px-20 pt-8">
+        <a href="/" class="flex items-center text-2xl font-bold text-[#222] no-underline">
+            <svg width="32" height="32" fill="none" class="mr-3" xmlns="http://www.w3.org/2000/svg">
+                <rect x="4" y="8" width="24" height="16" rx="4" fill="#1877ff"/>
+                <path d="M4 8l12 10L28 8" stroke="#fff" stroke-width="2"/>
+            </svg>
+            vashsender
+        </a>
+    </header>
+
+    <!-- Main Content -->
+    <div class="flex flex-col md:flex-row items-center justify-between px-6 md:px-20 pt-12 pb-8 min-h-[80vh]">
+        <!-- Left Hero Section -->
+        <div class="flex-1 flex flex-col items-start gap-8 mb-12 md:mb-0">
+            <h1 class="text-4xl md:text-6xl font-extrabold text-[#222a38] leading-tight">
+                ПОДТВЕРДИТЕ<br>ВАШУ ПОЧТУ
+            </h1>
+            <p class="text-lg text-[#6b7a99] max-w-xl">
+                Мы отправили письмо с подтверждением на ваш адрес электронной почты. Подтвердите свою учетную запись, чтобы начать использовать все возможности vashsender.
+            </p>
+            
+            <!-- Features List -->
+            <div class="space-y-4">
+                <div class="flex items-center gap-3">
+                    <i class="fa-solid fa-circle-check text-[#1877ff] text-lg"></i>
+                    <span class="text-[#6b7a99] text-base">Быстрая настройка аккаунта</span>
+                </div>
+                <div class="flex items-center gap-3">
+                    <i class="fa-solid fa-circle-check text-[#1877ff] text-lg"></i>
+                    <span class="text-[#6b7a99] text-base">Доступ к полному функционалу</span>
+                </div>
+                <div class="flex items-center gap-3">
+                    <i class="fa-solid fa-circle-check text-[#1877ff] text-lg"></i>
+                    <span class="text-[#6b7a99] text-base">200 подписчиков бесплатно</span>
+                </div>
+                <div class="flex items-center gap-3">
+                    <i class="fa-solid fa-circle-check text-[#1877ff] text-lg"></i>
+                    <span class="text-[#6b7a99] text-base">Неограниченное количество писем</span>
+                </div>
+            </div>
+
+            <!-- Info Box -->
+            <div class="bg-white rounded-2xl p-6 shadow-lg max-w-md">
+                <div class="flex items-center gap-3 mb-4">
+                    <div class="w-10 h-10 bg-[#1877ff] rounded-full flex items-center justify-center text-white">
+                        <i class="fa-solid fa-info text-sm"></i>
+                    </div>
+                    <div>
+                        <div class="font-bold text-[#222a38] text-sm">Проверьте папку "Спам"</div>
+                        <div class="text-[#6b7a99] text-xs">Письмо может попасть туда</div>
+                    </div>
+                </div>
+                <p class="text-[#6b7a99] text-sm">
+                    Если вы не получили письмо в течение 5 минут, проверьте папку "Спам" или нажмите кнопку "Отправить заново".
+                </p>
             </div>
         </div>
 
-        <h1 class="title">Пожалуйста, подтвердите свой адрес электронной почты</h1>
-        
-        <p class="description">
-            Мы отправили письмо с подтверждением на адрес {{ email }}. Нажмите на ссылку в письме, чтобы подтвердить свою учетную запись и начать.
-        </p>
+        <!-- Right Confirmation Section -->
+        <div class="flex-1 flex items-center justify-center">
+            <div class="bg-white rounded-2xl shadow-lg p-8 w-full max-w-md">
+                <div class="text-center mb-8">
+                    <!-- Email Icon -->
+                    <div class="w-20 h-20 bg-[#1877ff] rounded-full flex items-center justify-center mx-auto mb-6 relative">
+                        <i class="fa-regular fa-envelope text-white text-2xl"></i>
+                        <div class="absolute -bottom-1 -right-1 w-8 h-8 bg-[#FF7A00] rounded-full flex items-center justify-center border-2 border-white">
+                            <i class="fa-solid fa-check text-white text-xs"></i>
+                        </div>
+                    </div>
+                    
+                    <h2 class="text-2xl font-bold text-[#222a38] mb-2">Письмо отправлено!</h2>
+                    <p class="text-[#6b7a99] text-base">Проверьте вашу почту</p>
+                </div>
 
-        <p class="secondary-text">
-            Не получили письмо? Проверьте папку со спамом или нажмите кнопку ниже, чтобы отправить повторно.
-        </p>
+                <!-- Email Address Display -->
+                <div class="bg-[#f5f6fa] rounded-lg p-4 mb-6">
+                    <div class="text-center">
+                        <p class="text-[#6b7a99] text-sm mb-1">Письмо отправлено на:</p>
+                        <p class="text-[#222a38] font-bold text-base">{{ email }}</p>
+                    </div>
+                </div>
 
-        <div class="button-group">
-            <button class="btn btn-primary" onclick="resendEmail()">
-                <span><i class="fa-regular fa-envelope"></i></span> 
-                Отправить письмо заново
-            </button>
-            {% if provider_url and provider_name %}
-                <a href="{{ provider_url }}" class="btn btn-secondary" target="_blank">
-                Открыть {{ provider_name }}
-                </a>
-            {% endif %}
-            <a href="/dashboard/" class="btn btn-secondary">    
-                ← В главную
-            </a>
-        </div>
+                <!-- Action Buttons -->
+                <div class="space-y-3 mb-6">
+                    <button onclick="resendEmail()" class="w-full bg-[#1877ff] hover:bg-[#125fd1] text-white font-bold rounded-md py-3 text-base transition flex items-center justify-center gap-2">
+                        <i class="fa-regular fa-envelope"></i>
+                        <span id="resendText">Отправить письмо заново</span>
+                    </button>
+                    
+                    {% if provider_url and provider_name %}
+                        <a href="{{ provider_url }}" target="_blank" class="w-full bg-white border border-gray-300 hover:bg-gray-50 text-[#222a38] font-bold rounded-md py-3 text-base transition flex items-center justify-center gap-2">
+                            <i class="fa-solid fa-external-link-alt"></i>
+                            Открыть {{ provider_name }}
+                        </a>
+                    {% endif %}
+                    
+                    <a href="/dashboard/" class="w-full bg-white border border-gray-300 hover:bg-gray-50 text-[#222a38] font-bold rounded-md py-3 text-base transition flex items-center justify-center gap-2">
+                        <i class="fa-solid fa-arrow-left"></i>
+                        В главную
+                    </a>
+                </div>
 
-        <div class="help-text">
-            Нужна помощь? <a href="#" onclick="contactSupport()">Свяжитесь с нашей службой поддержки    </a>
+                <!-- Help Text -->
+                <div class="text-center">
+                    <p class="text-[#6b7a99] text-sm">
+                        Нужна помощь? 
+                        <a href="/support/" class="text-[#1877ff] hover:underline font-medium">Свяжитесь с поддержкой</a>
+                    </p>
+                </div>
+            </div>
         </div>
     </div>
 
     <script>
         function resendEmail() {
-            const btn = document.querySelector('.btn-primary');
-            const originalText = btn.innerHTML;
+            const btn = document.querySelector('button');
+            const resendText = document.getElementById('resendText');
+            const icon = btn.querySelector('i');
             
             // Show loading state
-            btn.innerHTML = '<span><i class="fa-solid fa-hourglass-start"></i></span> Отправка...';
-            btn.style.opacity = '0.7';
             btn.disabled = true;
+            btn.style.opacity = '0.7';
+            resendText.textContent = 'Отправка...';
+            icon.className = 'fa-solid fa-hourglass-start';
             
             // Simulate API call
             setTimeout(() => {
-                btn.innerHTML = '<span><i class="fa-solid fa-check"></i></span> Письмо отправлено!';
-                btn.style.background = 'linear-gradient(135deg, #10B981 0%, #059669 100%)';
+                // Show success state
+                btn.style.background = '#10B981';
+                resendText.textContent = 'Письмо отправлено!';
+                icon.className = 'fa-solid fa-check';
                 
                 setTimeout(() => {
-                    btn.innerHTML = originalText;
-                    btn.style.background = 'linear-gradient(135deg, #2D6CDF 0%, #4A90E2 100%)';
+                    // Reset to original state
+                    btn.style.background = '#1877ff';
                     btn.style.opacity = '1';
                     btn.disabled = false;
+                    resendText.textContent = 'Отправить письмо заново';
+                    icon.className = 'fa-regular fa-envelope';
                 }, 2000);
             }, 1500);
         }
 
-        function goToLogin() {
-            // Add smooth transition effect
-            document.body.style.transition = 'opacity 0.3s ease';
-            document.body.style.opacity = '0';
-            
-            setTimeout(() => {
-                // In a real app, this would navigate to the login page
-                console.log('Navigating to login page...');
-                // window.location.href = '/login';
-            }, 300);
-        }
-
         function contactSupport() {
-            // In a real app, this would open support chat or email
-            console.log('Opening support...');
-            alert('Support contact functionality would be implemented here.');
+            alert('Функция связи с поддержкой будет реализована здесь.');
         }
 
-        // Add some interactive hover effects
+        // Add some interactive effects
         document.addEventListener('DOMContentLoaded', function() {
-            const container = document.querySelector('.confirmation-container');
+            const container = document.querySelector('.bg-white.rounded-2xl');
             
             container.addEventListener('mouseenter', function() {
                 this.style.transform = 'translateY(-2px)';
-                this.style.boxShadow = '0 24px 80px rgba(45, 108, 223, 0.12), 0 12px 32px rgba(0, 0, 0, 0.06)';
+                this.style.boxShadow = '0 20px 40px rgba(0, 0, 0, 0.1)';
             });
             
             container.addEventListener('mouseleave', function() {
                 this.style.transform = 'translateY(0)';
-                this.style.boxShadow = '0 20px 60px rgba(45, 108, 223, 0.08), 0 8px 24px rgba(0, 0, 0, 0.04)';
+                this.style.boxShadow = '0 10px 25px rgba(0, 0, 0, 0.1)';
             });
         });
     </script>
