@@ -16,6 +16,7 @@ import uuid
 from .models import Campaign, CampaignStats, EmailTracking, CampaignRecipient
 from .serializers import CampaignSerializer, EmailTrackingSerializer
 from apps.billing.models import Plan
+from apps.campaigns.tasks import send_campaign
 
 
 class CampaignViewSet(viewsets.ModelViewSet):
@@ -127,126 +128,62 @@ class CampaignViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST
             )
 
-        # Проверяем статус доверенного пользователя
-        if not request.user.is_trusted_user:
-            # Если пользователь не доверенный, отправляем на модерацию
-            campaign.status = Campaign.STATUS_PENDING
-            campaign.save(update_fields=['status'])
-            return Response({
-                'detail': 'Рассылка отправлена на модерацию.',
-                'status': 'pending',
-                'message': 'Ваша рассылка будет отправлена после проверки модератором.'
-            })
-        else:
-            # Если пользователь доверенный, отправляем сразу
-            campaign.status = Campaign.STATUS_SENDING
-            campaign.save(update_fields=['status'])
-            self._send_sync(campaign)
-            return Response({
-                'detail': 'Кампания запущена.',
-                'status': 'sending'
-            })
-
-    def _send_sync(self, campaign):
         try:
-            # Get all contacts from all contact lists
-            contacts = set()
-            for contact_list in campaign.contact_lists.all():
-                contacts.update(contact_list.contacts.all())
+            # Очищаем предыдущие записи об отправке
+            EmailTracking.objects.filter(campaign=campaign).delete()
+            CampaignRecipient.objects.filter(campaign=campaign).delete()
 
-            print(f"Отправляем рассылку '{campaign.name}' на {len(contacts)} контактов")
-
-            # Send email to each contact
-            for contact in contacts:
-                try:
-                    # Create tracking record
-                    tracking = EmailTracking.objects.create(
-                        campaign=campaign,
-                        contact=contact,
-                        tracking_id=str(uuid.uuid4())
-                    )
-
-                    # Prepare email content with tracking
-                    html_content = campaign.template.html_content
-                    if campaign.content:
-                        html_content = html_content.replace('{{content}}', campaign.content)
-
-                    # Add tracking pixel (only if </body> exists)
-                    tracking_pixel = f'<img src="/campaigns/{campaign.id}/track-open/?tracking_id={tracking.tracking_id}" width="1" height="1" />'
-                    if '</body>' in html_content:
-                        html_content = html_content.replace('</body>', f'{tracking_pixel}</body>')
-                    else:
-                        html_content += tracking_pixel
-
-                    # Create plain text version
-                    import re
-                    plain_text = re.sub(r'<[^>]+>', '', html_content)
-                    plain_text = re.sub(r'\s+', ' ', plain_text).strip()
-
-                    # Send email
-                    # Используем имя отправителя из кампании, если оно задано
-                    sender_name = campaign.sender_name
-                    if not sender_name:
-                        # Если не задано в кампании, берем из sender_email
-                        sender_name = campaign.sender_email.sender_name
-                        if not sender_name:
-                            # Извлекаем имя из email (часть до @)
-                            email_parts = campaign.sender_email.email.split('@')
-                            if len(email_parts) > 0:
-                                email_name = email_parts[0]
-                                # Специальные случаи для известных email адресов
-                                if email_name == 'mednews':
-                                    sender_name = "Медновости"
-                                elif email_name == 'noreply':
-                                    sender_name = "VashSender"
-                                else:
-                                    # Делаем первую букву заглавной и заменяем точки на пробелы
-                                    sender_name = email_name.replace('.', ' ').replace('_', ' ').title()
-                            else:
-                                sender_name = "Отправитель"
-                    
-                    from_email = f"{sender_name} <{campaign.sender_email.email}>"
-                    
-                    email = EmailMultiAlternatives(
-                        subject=campaign.subject,
-                        body=plain_text,
-                        from_email=from_email,
-                        to=[contact.email],
-                        reply_to=[campaign.sender_email.reply_to] if campaign.sender_email.reply_to else None
-                    )
-                    email.attach_alternative(html_content, "text/html")
-                    
-                    print(f"Отправляем письмо на {contact.email}")
-                    email.send()
-                    print(f"Письмо успешно отправлено на {contact.email}")
-
-                    # Mark as sent in CampaignRecipient
-                    CampaignRecipient.objects.create(
-                        campaign=campaign,
-                        contact=contact,
-                        is_sent=True,
-                        sent_at=timezone.now()
-                    )
-
-                    # Mark as delivered
-                    tracking.mark_as_delivered()
-
-                except Exception as e:
-                    print(f"Ошибка отправки письма на {contact.email}: {str(e)}")
-                    # Continue with next contact instead of failing entire campaign
-                    continue
-
-            # Update campaign status
-            campaign.status = Campaign.STATUS_SENT
-            campaign.sent_at = timezone.now()
-            campaign.save(update_fields=['status', 'sent_at'])
-            print(f"Кампания '{campaign.name}' завершена")
+            # Запускаем асинхронную отправку через Celery
+            task = send_campaign.delay(str(campaign.id))
+            
+            # Сохраняем task_id в модели
+            campaign.celery_task_id = task.id
+            campaign.save(update_fields=['celery_task_id'])
+            
+            return Response({
+                'detail': 'Кампания запущена в фоновом режиме.',
+                'task_id': task.id,
+                'status': 'sending',
+                'status_display': 'Отправляется'
+            })
 
         except Exception as e:
-            print(f"Критическая ошибка в кампании '{campaign.name}': {str(e)}")
             campaign.status = Campaign.STATUS_FAILED
             campaign.save(update_fields=['status'])
-            raise e
+            return Response(
+                {'detail': f'Ошибка при запуске кампании: {str(e)}'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+    @action(detail=True, methods=['get'])
+    def progress(self, request, pk=None):
+        """Получить прогресс отправки кампании"""
+        campaign = self.get_object()
+        
+        from django.core.cache import cache
+        
+        # Получаем прогресс из кэша
+        progress_data = cache.get(f'campaign_progress_{campaign.id}')
+        
+        if not progress_data:
+            # Если нет в кэше, считаем из базы
+            total_recipients = CampaignRecipient.objects.filter(campaign=campaign).count()
+            sent_recipients = CampaignRecipient.objects.filter(
+                campaign=campaign, 
+                is_sent=True
+            ).count()
+            
+            progress_data = {
+                'total': total_recipients,
+                'sent': sent_recipients,
+                'progress': (sent_recipients / total_recipients * 100) if total_recipients > 0 else 0
+            }
+        
+        return Response({
+            'campaign_id': str(campaign.id),
+            'status': campaign.status,
+            'progress': progress_data
+        })
 
     @action(detail=True, methods=['post'])
     def track_open(self, request, pk=None):

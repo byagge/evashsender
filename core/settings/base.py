@@ -233,6 +233,22 @@ EMAIL_HOST_PASSWORD = ''
 DEFAULT_FROM_EMAIL = 'noreply@vashsender.ru'
 SERVER_EMAIL = DEFAULT_FROM_EMAIL  # от этого адреса Django шлёт системные письма
 
+# Celery Configuration
+CELERY_BROKER_URL = 'redis://localhost:6379/0'
+CELERY_RESULT_BACKEND = 'redis://localhost:6379/0'
+CELERY_ACCEPT_CONTENT = ['json']
+CELERY_TASK_SERIALIZER = 'json'
+CELERY_RESULT_SERIALIZER = 'json'
+CELERY_TIMEZONE = 'Europe/Moscow'
+
+# Email sending configuration
+EMAIL_BATCH_SIZE = 100  # Количество писем в одном батче
+EMAIL_RATE_LIMIT = 50   # Писем в секунду
+EMAIL_MAX_RETRIES = 3   # Максимальное количество попыток
+EMAIL_RETRY_DELAY = 60  # Задержка между попытками в секундах
+EMAIL_CONNECTION_TIMEOUT = 30  # Timeout для SMTP соединения
+EMAIL_SEND_TIMEOUT = 60  # Timeout для отправки письма
+
 # Custom error pages
 HANDLER404 = 'core.error_handlers.handler404'
 HANDLER500 = 'core.error_handlers.handler500'

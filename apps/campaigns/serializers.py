@@ -3,7 +3,7 @@
 from rest_framework import serializers
 
 from apps.emails.models import SenderEmail
-from apps.mailer.models import ContactList
+from apps.mailer.models import ContactList, Contact
 from apps.mail_templates.models import EmailTemplate
 from .models import Campaign, CampaignStats, EmailTracking
 
@@ -11,6 +11,31 @@ class EmailTrackingSerializer(serializers.ModelSerializer):
     class Meta:
         model = EmailTracking
         fields = ['id', 'tracking_id', 'sent_at', 'opened_at', 'clicked_at', 'bounced_at', 'bounce_reason']
+
+class EmailTemplateSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = EmailTemplate
+        fields = ['id', 'title', 'html_content']
+
+class SenderEmailSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = SenderEmail
+        fields = ['id', 'email', 'sender_name', 'reply_to']
+
+class ContactListSerializer(serializers.ModelSerializer):
+    contacts_count = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = ContactList
+        fields = ['id', 'name', 'contacts_count']
+    
+    def get_contacts_count(self, obj):
+        return obj.contacts.count()
+
+class ContactSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Contact
+        fields = ['id', 'email', 'first_name', 'last_name']
 
 class CampaignStatsSerializer(serializers.ModelSerializer):
     emails_sent = serializers.SerializerMethodField()
@@ -50,60 +75,25 @@ class CampaignStatsSerializer(serializers.ModelSerializer):
         ).count()
 
 class CampaignSerializer(serializers.ModelSerializer):
-    # Используем обычные поля для записи
-    sender_email = serializers.PrimaryKeyRelatedField(
-        queryset=SenderEmail.objects.all(),
-        required=False,
-        allow_null=True
-    )
-    contact_lists = serializers.PrimaryKeyRelatedField(
-        many=True,
-        queryset=ContactList.objects.all(),
-        required=False,
-        allow_empty=True
-    )
-    template = serializers.PrimaryKeyRelatedField(
-        queryset=EmailTemplate.objects.all(),
-        required=False,
-        allow_null=True
-    )
-
-    # Эти поля оставляем как read-only для отображения доп. данных
-    contact_lists_detail = serializers.SerializerMethodField()
-    stats = serializers.SerializerMethodField()
-    emails_sent = serializers.SerializerMethodField()
-    delivered_emails = serializers.SerializerMethodField()
-    open_rate = serializers.SerializerMethodField()
-    click_rate = serializers.SerializerMethodField()
-    bounce_rate = serializers.SerializerMethodField()
-    delivery_rate = serializers.SerializerMethodField()
-    sender_name = serializers.SerializerMethodField()
-    reply_to = serializers.SerializerMethodField()
-    status_display = serializers.SerializerMethodField()
+    user = serializers.ReadOnlyField(source='user.email')
+    template = EmailTemplateSerializer(read_only=True)
+    sender_email = SenderEmailSerializer(read_only=True)
+    contact_lists = ContactListSerializer(many=True, read_only=True)
+    recipients = ContactSerializer(many=True, read_only=True)
+    status_display = serializers.CharField(source='get_status_display', read_only=True)
+    emails_sent = serializers.ReadOnlyField()
+    open_rate = serializers.ReadOnlyField()
+    click_rate = serializers.ReadOnlyField()
 
     class Meta:
         model = Campaign
         fields = [
-            'id', 'name', 'template', 'sender_email', 'subject',
-            'content', 'contact_lists', 'contact_lists_detail',
-            'scheduled_at', 'status', 'status_display', 'created_at', 'sent_at', 'updated_at',
-            'auto_send_at', 'stats', 'emails_sent', 'delivered_emails', 
-            'open_rate', 'click_rate', 'bounce_rate', 'delivery_rate',
-            'sender_name', 'reply_to'
+            'id', 'user', 'name', 'subject', 'content', 'status', 'status_display',
+            'created_at', 'updated_at', 'scheduled_at', 'sent_at',
+            'template', 'sender_email', 'contact_lists', 'recipients',
+            'emails_sent', 'open_rate', 'click_rate', 'celery_task_id'
         ]
-        read_only_fields = ['id', 'status', 'status_display', 'created_at', 'sent_at', 'updated_at', 'auto_send_at']
-
-    def get_status_display(self, obj):
-        return obj.get_status_display()
-
-    def get_sender_name(self, obj):
-        # Используем sender_name из кампании, если оно задано, иначе из sender_email
-        if obj.sender_name:
-            return obj.sender_name
-        return obj.sender_email.sender_name if obj.sender_email else ''
-
-    def get_reply_to(self, obj):
-        return obj.sender_email.reply_to if obj.sender_email else ''
+        read_only_fields = ['id', 'user', 'created_at', 'updated_at', 'sent_at']
 
     def validate(self, data):
         # Для черновиков проверяем только наличие хотя бы одного поля

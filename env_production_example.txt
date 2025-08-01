@@ -1,0 +1,86 @@
+# VashSender Production Environment Variables
+# Скопируйте этот файл в .env и заполните реальными значениями
+
+# Django Settings
+SECRET_KEY=your-super-secret-key-here-change-this-immediately
+DEBUG=False
+DJANGO_SETTINGS_MODULE=core.settings.production
+
+# Database Configuration
+DB_NAME=vashsender
+DB_USER=vashsender
+DB_PASSWORD=your-database-password
+DB_HOST=localhost
+DB_PORT=5432
+
+# Redis Configuration
+REDIS_URL=redis://localhost:6379/0
+
+# Email Configuration
+EMAIL_HOST=smtp.gmail.com
+EMAIL_PORT=587
+EMAIL_USE_TLS=True
+EMAIL_USE_SSL=False
+EMAIL_HOST_USER=your-email@gmail.com
+EMAIL_HOST_PASSWORD=your-app-password
+DEFAULT_FROM_EMAIL=noreply@vashsender.ru
+
+# Email Sending Configuration
+EMAIL_BATCH_SIZE=200
+EMAIL_RATE_LIMIT=100
+EMAIL_MAX_RETRIES=3
+EMAIL_RETRY_DELAY=60
+EMAIL_CONNECTION_TIMEOUT=30
+EMAIL_SEND_TIMEOUT=60
+
+# Celery Configuration
+CELERY_BROKER_URL=redis://localhost:6379/0
+CELERY_RESULT_BACKEND=redis://localhost:6379/0
+
+# Security Settings
+CSRF_COOKIE_SECURE=True
+SESSION_COOKIE_SECURE=True
+CSRF_COOKIE_HTTPONLY=True
+SESSION_COOKIE_HTTPONLY=True
+
+# Performance Settings
+CONN_MAX_AGE=600
+DATA_UPLOAD_MAX_MEMORY_SIZE=10485760
+
+# Monitoring Settings
+ENABLE_METRICS=True
+METRICS_INTERVAL=60
+HEALTH_CHECK_ENABLED=True
+HEALTH_CHECK_INTERVAL=300
+
+# Auto-scaling Settings
+AUTO_SCALE_WORKERS=True
+MAX_WORKERS=32
+MIN_WORKERS=4
+WORKER_SCALE_THRESHOLD=1000
+
+# Backup Settings
+BACKUP_ENABLED=True
+BACKUP_INTERVAL=86400
+BACKUP_RETENTION_DAYS=30
+
+# Logging Settings
+LOG_LEVEL=INFO
+LOG_FILE=/var/log/vashsender/django.log
+CELERY_LOG_FILE=/var/log/vashsender/celery.log
+
+# Static and Media Files
+STATIC_ROOT=/var/www/vashsender/static/
+MEDIA_ROOT=/var/www/vashsender/media/
+
+# Domain Settings
+ALLOWED_HOSTS=vashsender.ru,www.vashsender.ru,api.vashsender.ru,admin.vashsender.ru
+CSRF_TRUSTED_ORIGINS=https://vashsender.ru,https://www.vashsender.ru,https://api.vashsender.ru,https://admin.vashsender.ru
+
+# Email Verification
+EMAIL_USE_VERIFICATION=True
+EMAIL_VERIFICATION_TIMEOUT=3600
+
+# Session Configuration
+SESSION_ENGINE=django.contrib.sessions.backends.cache
+SESSION_CACHE_ALIAS=default 

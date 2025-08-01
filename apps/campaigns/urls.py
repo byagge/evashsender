@@ -11,21 +11,13 @@ from .views import (
 )
 
 router = DefaultRouter()
-router.register(r'campaigns', CampaignViewSet, basename='campaign')
+router.register(r'campaigns', views.CampaignViewSet, basename='campaign')
 
 urlpatterns = [
-    # API routes: /campaigns/api/…
     path('api/', include(router.urls)),
-
-    # UI
-    # /campaigns/           — список
-    path('', CampaignListView.as_view(), name='campaign_list'),
-    # /campaigns/new/       — создание
-    path('new/', CampaignFormView.as_view(), name='campaign_new'),
-    # /campaigns/<uuid:pk>/  — редактирование
-    path('<uuid:pk>/', CampaignFormView.as_view(), name='campaign_edit'),
-    
-    # Tracking endpoints
-    path('<uuid:campaign_id>/track-open/', views.track_email_open, name='track_email_open'),
-    path('<uuid:campaign_id>/track-click/', views.track_email_click, name='track_email_click'),
+    path('campaigns/', views.CampaignListView.as_view(), name='campaign_list'),
+    path('campaigns/create/', views.CampaignFormView.as_view(), name='campaign_create'),
+    path('campaigns/<uuid:pk>/edit/', views.CampaignFormView.as_view(), name='campaign_edit'),
+    path('campaigns/<uuid:campaign_id>/track-open/', views.track_email_open, name='track_email_open'),
+    path('campaigns/<uuid:campaign_id>/track-click/', views.track_email_click, name='track_email_click'),
 ]
