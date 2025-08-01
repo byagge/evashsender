@@ -233,52 +233,6 @@ EMAIL_HOST_PASSWORD = ''
 DEFAULT_FROM_EMAIL = 'noreply@vashsender.ru'
 SERVER_EMAIL = DEFAULT_FROM_EMAIL  # от этого адреса Django шлёт системные письма
 
-
-# Logging configuration
-LOGGING = {
-    'version': 1,
-    'disable_existing_loggers': False,
-    'formatters': {
-        'verbose': {
-            'format': '{levelname} {asctime} {module} {process:d} {thread:d} {message}',
-            'style': '{',
-        },
-        'simple': {
-            'format': '{levelname} {message}',
-            'style': '{',
-        },
-    },
-    'handlers': {
-        'console': {
-            'class': 'logging.StreamHandler',
-            'formatter': 'verbose',
-        },
-        'file': {
-            'class': 'logging.FileHandler',
-            'filename': 'django.log',
-            'formatter': 'verbose',
-        },
-    },
-    'loggers': {
-        'django': {
-            'handlers': ['console'],
-            'level': 'INFO',
-        },
-        'django.request': {
-            'handlers': ['console'],
-            'level': 'DEBUG',
-        },
-        'django.security': {
-            'handlers': ['console'],
-            'level': 'DEBUG',
-        },
-        'apps.campaigns': {
-            'handlers': ['console'],
-            'level': 'DEBUG',
-        },
-    },
-}
-
 # Custom error pages
 HANDLER404 = 'core.error_handlers.handler404'
 HANDLER500 = 'core.error_handlers.handler500'

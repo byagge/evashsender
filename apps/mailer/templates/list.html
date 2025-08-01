@@ -58,11 +58,17 @@
                   <h1 class="text-3xl font-bold text-gray-900">Списки контактов</h1>
                   <p class="text-gray-600 mt-1">Управляйте списками email-маркетинга</p>
                 </div>
-                <button @click="showCreateModal = true"
-                        class="flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
-                  <i data-lucide="plus" class="w-4 h-4 mr-2"></i>
-                  Создать новый список
-                </button>
+                <div class="flex items-center space-x-3">
+                  <a href="/lists/import-tasks/" class="flex items-center px-4 py-2 border border-gray-300 rounded-lg text-gray-700 bg-white hover:bg-gray-50 transition-colors">
+                    <i data-lucide="activity" class="w-4 h-4 mr-2"></i>
+                    Фоновые задачи
+                  </a>
+                  <button @click="showCreateModal = true"
+                          class="flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
+                    <i data-lucide="plus" class="w-4 h-4 mr-2"></i>
+                    Создать новый список
+                  </button>
+                </div>
               </div>
               <!-- TOOLBAR -->
               <div class="flex items-center space-x-4 mb-6">
@@ -331,6 +337,28 @@
         </template>
       </div>
 
+      <!-- Тип импорта -->
+      <div class="mt-4">
+        <label class="block text-sm font-medium text-gray-700 mb-2">Тип импорта:</label>
+        <div class="space-y-2">
+          <label class="flex items-center">
+            <input type="radio" x-model="importType" value="normal" class="mr-2">
+            <span class="text-sm">С валидацией (медленнее, но точнее)</span>
+          </label>
+          <label class="flex items-center">
+            <input type="radio" x-model="importType" value="fast" class="mr-2">
+            <span class="text-sm">Быстрый импорт (без валидации)</span>
+          </label>
+        </div>
+      </div>
+
+      <!-- Прогресс импорта -->
+      <template x-if="importProgress">
+        <div class="mt-4 p-3 bg-blue-50 rounded-lg">
+          <p class="text-sm text-blue-800" x-text="importProgress"></p>
+        </div>
+      </template>
+
       <!-- кнопки -->
       <div class="flex space-x-3 mt-4">
         <button
@@ -526,6 +554,9 @@
         selectedContacts: [],
         importFileObj: null,
         isImporting: false,
+        importProgress: '',
+        importResult: null,
+        importType: 'normal', // 'normal' или 'fast'
         showAddModal: false,
         newManualEmail: '',
         addError: '',
@@ -710,35 +741,94 @@
         openImport() {
           this.importFileObj = null;
           this.importSuccess = false;
+          this.importProgress = '';
+          this.importResult = null;
+          this.importType = 'normal';
           this.showImportModal = true;
         },
         closeImport() {
           this.showImportModal = false;
+          this.importProgress = '';
+          this.importResult = null;
         },
         handleFileChange(e) {
           this.importFileObj = e.target.files?.[0] || e.dataTransfer.files?.[0] || null;
         },
-        async importFile() {
+                async importFile() {
           if (!this.importFileObj || !this.selectedList) return;
           this.isImporting = true;
+          this.importProgress = 'Начинаем импорт...';
+          
           const fd = new FormData();
           fd.append('file', this.importFileObj);
 
-          const res = await fetch(`${API_BASE}${this.selectedList.id}/import/`, {
-            method: 'POST',
-            credentials: 'same-origin',
-            headers: { 'X-CSRFToken': getCSRFToken() },
-            body: fd
-          });
+          try {
+            // Определяем тип импорта (быстрый или с валидацией)
+            const importType = this.importType || 'normal';
+            const endpoint = importType === 'fast' ? 'import-fast/' : 'import/';
+            
+            // Оцениваем время импорта
+            const fileSize = this.importFileObj.size;
+            const estimatedEmails = Math.floor(fileSize / 50); // Примерно 50 байт на email
+            const estimatedTime = importType === 'fast' ? 
+              Math.ceil(estimatedEmails / 1000) : // 1000 email/сек для быстрого
+              Math.ceil(estimatedEmails / 10);    // 10 email/сек для валидации
+            
+            this.importProgress = `Импортируем файл ${this.importFileObj.name}... Примерное время: ${estimatedTime} сек`;
+            
+            const startTime = Date.now();
+            
+            if (importType === 'fast') {
+              // Быстрый импорт - синхронный
+              const res = await fetch(`${API_BASE}${this.selectedList.id}/${endpoint}`, {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: { 'X-CSRFToken': getCSRFToken() },
+                body: fd
+              });
 
-          if (res.ok) {
-            this.importSuccess = true;
-            await this.viewList(this.selectedList);
-          } else {
-            console.error('Import failed', await res.text());
+              if (res.ok) {
+                const result = await res.json();
+                const actualTime = ((Date.now() - startTime) / 1000).toFixed(1);
+                this.importSuccess = true;
+                this.importResult = result;
+                this.importProgress = `Быстрый импорт завершен за ${actualTime} сек! Импортировано: ${result.imported} контактов`;
+                await this.viewList(this.selectedList);
+              } else {
+                const errorText = await res.text();
+                this.importProgress = `Ошибка импорта: ${errorText}`;
+              }
+            } else {
+              // Обычный импорт с валидацией - показываем прогресс
+              this.importProgress = 'Импорт с валидацией может занять несколько минут...';
+              
+              const res = await fetch(`${API_BASE}${this.selectedList.id}/${endpoint}`, {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: { 'X-CSRFToken': getCSRFToken() },
+                body: fd
+              });
+
+              if (res.ok) {
+                const result = await res.json();
+                const actualTime = ((Date.now() - startTime) / 1000).toFixed(1);
+                this.importSuccess = true;
+                this.importResult = result;
+                this.importProgress = `Импорт завершен за ${actualTime} сек! Импортировано: ${result.imported}, Недействительных: ${result.invalid_count}, В черном списке: ${result.blacklisted_count}`;
+                await this.viewList(this.selectedList);
+              } else {
+                const errorText = await res.text();
+                this.importProgress = `Ошибка импорта: ${errorText}`;
+              }
+            }
+          } catch (error) {
+            this.importProgress = `Ошибка сети: ${error.message}`;
+          } finally {
+            this.isImporting = false;
           }
-          this.isImporting = false;
         },
+
+
 
         openRenameModal(list) {
           this.renameListId   = list.id;

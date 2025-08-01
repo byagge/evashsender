@@ -9,35 +9,43 @@ class ContactSerializer(serializers.ModelSerializer):
         fields = ['id', 'email', 'status', 'added_date']
     
     def validate_email(self, value):
-        """Валидация email адреса"""
+        """Валидация email адреса при ручном добавлении"""
         from .utils import validate_email_production
         
         # Приводим к нижнему регистру
         email = value.lower().strip()
         
-        # Проверяем email с продакшен-валидацией
+        # Проверяем email с полной продакшен-валидацией (включая SMTP)
         validation_result = validate_email_production(email)
         
         if not validation_result['is_valid']:
-            error_msg = '; '.join(validation_result['errors'])
+            # Формируем понятное сообщение об ошибке
+            if validation_result['errors']:
+                error_msg = '; '.join(validation_result['errors'])
+            else:
+                error_msg = 'Email адрес не прошел валидацию'
             raise serializers.ValidationError(error_msg)
         
         # Возвращаем очищенный email
         return email
     
     def validate(self, data):
-        """Дополнительная валидация"""
+        """Дополнительная валидация при ручном добавлении"""
         from .utils import validate_email_production
         
         email = data.get('email', '')
         if email:
             validation_result = validate_email_production(email)
             
-            # Если email валиден, но есть предупреждения, устанавливаем правильный статус
+            # Устанавливаем правильный статус на основе валидации
             if validation_result['is_valid']:
                 data['status'] = validation_result['status']
             else:
                 data['status'] = Contact.INVALID
+            
+            # Добавляем предупреждения в контекст, если есть
+            if validation_result.get('warnings'):
+                data['warnings'] = validation_result['warnings']
         
         return data
 

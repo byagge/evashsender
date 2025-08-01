@@ -1,94 +1,95 @@
 from django.core.management.base import BaseCommand
-from apps.mailer.models import Contact
+from apps.mailer.models import Contact, ContactList
 from apps.mailer.utils import validate_email_production
-from django.db import transaction
-
 
 class Command(BaseCommand):
-    help = 'Валидирует все существующие контакты и обновляет их статусы'
+    help = 'Validate contacts in background'
 
     def add_arguments(self, parser):
-        parser.add_argument(
-            '--dry-run',
-            action='store_true',
-            help='Показать что будет изменено без сохранения',
-        )
-        parser.add_argument(
-            '--list-id',
-            type=int,
-            help='Валидировать только контакты из конкретного списка',
-        )
+        parser.add_argument('--list-id', type=str, help='Contact list ID to validate')
+        parser.add_argument('--batch-size', type=int, default=100, help='Batch size for processing')
+        parser.add_argument('--status', type=str, default='valid', help='Status to validate (valid, invalid, all)')
 
     def handle(self, *args, **options):
-        dry_run = options['dry_run']
         list_id = options.get('list_id')
+        batch_size = options.get('batch_size')
+        status_filter = options.get('status')
+
+        if list_id:
+            try:
+                contact_list = ContactList.objects.get(id=list_id)
+                self.stdout.write(f'Validating contacts in list: {contact_list.name}')
+            except ContactList.DoesNotExist:
+                self.stdout.write(self.style.ERROR(f'Contact list with ID {list_id} not found'))
+                return
+        else:
+            self.stdout.write('Validating all contacts in all lists')
+            contact_list = None
+
+        # Определяем фильтр по статусу
+        if status_filter == 'valid':
+            status_filter = Contact.VALID
+        elif status_filter == 'invalid':
+            status_filter = Contact.INVALID
+        else:
+            status_filter = None
         
         # Получаем контакты для валидации
-        if list_id:
-            contacts = Contact.objects.filter(contact_list_id=list_id)
-            self.stdout.write(f"Валидация контактов из списка ID: {list_id}")
+        if contact_list:
+            if status_filter:
+                contacts = Contact.objects.filter(contact_list=contact_list, status=status_filter)
+            else:
+                contacts = Contact.objects.filter(contact_list=contact_list)
+        else:
+            if status_filter:
+                contacts = Contact.objects.filter(status=status_filter)
         else:
             contacts = Contact.objects.all()
-            self.stdout.write("Валидация всех контактов")
         
         total_contacts = contacts.count()
-        self.stdout.write(f"Всего контактов для валидации: {total_contacts}")
+        self.stdout.write(f'Found {total_contacts} contacts to validate')
         
-        if dry_run:
-            self.stdout.write("РЕЖИМ ПРЕДВАРИТЕЛЬНОГО ПРОСМОТРА - изменения не будут сохранены")
+        if total_contacts == 0:
+            self.stdout.write('No contacts to validate')
+            return
         
-        # Статистика
-        stats = {
-            'valid': 0,
-            'invalid': 0,
-            'blacklist': 0,
-            'unchanged': 0,
-            'changed': 0
-        }
-        
-        # Валидируем контакты
-        for i, contact in enumerate(contacts, 1):
-            if i % 100 == 0:
-                self.stdout.write(f"Обработано: {i}/{total_contacts}")
+        # Валидируем контакты батчами
+        processed = 0
+        updated = 0
+        errors = 0
+
+        for i in range(0, total_contacts, batch_size):
+            batch = contacts[i:i + batch_size]
+            
+            for contact in batch:
+                try:
+                    processed += 1
+                    
+                    if processed % 100 == 0:
+                        self.stdout.write(f'Processed {processed}/{total_contacts} contacts')
             
             # Валидируем email
             validation_result = validate_email_production(contact.email)
             
-            old_status = contact.status
+                    # Обновляем статус если нужно
+                    if validation_result['is_valid']:
             new_status = validation_result['status']
-            
-            if validation_result['is_valid']:
-                if new_status == Contact.VALID:
-                    stats['valid'] += 1
-                elif new_status == Contact.BLACKLIST:
-                    stats['blacklist'] += 1
-            else:
-                stats['invalid'] += 1
-                new_status = Contact.INVALID
-            
-            # Проверяем, изменился ли статус
-            if old_status != new_status:
-                stats['changed'] += 1
-                if not dry_run:
+                        if contact.status != new_status:
                     contact.status = new_status
                     contact.save(update_fields=['status'])
-                self.stdout.write(
-                    f"  {contact.email}: {old_status} → {new_status}"
-                )
+                            updated += 1
             else:
-                stats['unchanged'] += 1
-        
-        # Выводим статистику
-        self.stdout.write("\n" + "="*50)
-        self.stdout.write("РЕЗУЛЬТАТЫ ВАЛИДАЦИИ:")
-        self.stdout.write(f"  Всего контактов: {total_contacts}")
-        self.stdout.write(f"  Действительных: {stats['valid']}")
-        self.stdout.write(f"  Недействительных: {stats['invalid']}")
-        self.stdout.write(f"  В черном списке: {stats['blacklist']}")
-        self.stdout.write(f"  Изменено статусов: {stats['changed']}")
-        self.stdout.write(f"  Без изменений: {stats['unchanged']}")
-        
-        if dry_run:
-            self.stdout.write("\nДля применения изменений запустите команду без --dry-run")
-        else:
-            self.stdout.write("\nВалидация завершена!") 
+                        if contact.status != Contact.INVALID:
+                            contact.status = Contact.INVALID
+                            contact.save(update_fields=['status'])
+                            updated += 1
+                            
+                except Exception as e:
+                    self.stdout.write(self.style.ERROR(f'Error validating contact {contact.email}: {e}'))
+                    errors += 1
+                    continue
+
+        self.stdout.write(self.style.SUCCESS(f'Validation completed!'))
+        self.stdout.write(f'Total processed: {processed}')
+        self.stdout.write(f'Updated: {updated}')
+        self.stdout.write(f'Errors: {errors}') 

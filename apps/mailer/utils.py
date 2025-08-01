@@ -15,6 +15,9 @@ MAX_DOMAIN_LENGTH = 253 # RFC 5321
 # Кэш для загруженных disposable-доменов
 DISPOSABLE_DOMAINS = None
 
+# Кэш для DNS запросов
+DNS_CACHE = {}
+
 # Список зарезервированных доменов верхнего уровня
 RESERVED_TLDS = {
     'test', 'example', 'invalid', 'localhost', 'local', 'internal', 'intranet',
@@ -125,17 +128,24 @@ def is_syntax_valid(email: str) -> bool:
 
 def has_mx_record(domain: str) -> bool:
     """
-    Проверка наличия MX-записей с таймаутом
+    Проверка наличия MX-записей с таймаутом и кэшированием
     """
+    # Проверяем кэш
+    if domain in DNS_CACHE:
+        return DNS_CACHE[domain]
+    
     try:
         # Устанавливаем таймаут для DNS-запросов
         resolver = dns.resolver.Resolver()
-        resolver.timeout = 5
-        resolver.lifetime = 10
+        resolver.timeout = 3  # Уменьшаем таймаут для ускорения
+        resolver.lifetime = 5
         
         answers = resolver.resolve(domain, 'MX')
-        return len(answers) > 0
+        result = len(answers) > 0
+        DNS_CACHE[domain] = result
+        return result
     except (dns.resolver.NXDOMAIN, dns.resolver.NoAnswer, dns.resolver.Timeout, Exception):
+        DNS_CACHE[domain] = False
         return False
 
 def has_a_record(domain: str) -> bool:
@@ -367,3 +377,35 @@ def validate_email_strict(email: str) -> dict:
     result['is_valid'] = True
     result['status'] = Contact.VALID
     return result
+
+def validate_email_fast(email: str) -> dict:
+    """
+    Быстрая валидация email для импорта - только базовые проверки без SMTP
+    """
+    if not email or not isinstance(email, str):
+        return {'is_valid': False, 'status': Contact.INVALID, 'reason': 'Empty or invalid input'}
+    
+    email = email.lower().strip()
+    
+    # Базовая проверка синтаксиса
+    if not is_syntax_valid(email):
+        return {'is_valid': False, 'status': Contact.INVALID, 'reason': 'Invalid syntax'}
+    
+    try:
+        local_part, domain = email.split('@', 1)
+    except ValueError:
+        return {'is_valid': False, 'status': Contact.INVALID, 'reason': 'Invalid format'}
+    
+    # Проверка зарезервированных доменов
+    if is_reserved_domain(domain):
+        return {'is_valid': False, 'status': Contact.INVALID, 'reason': 'Reserved domain'}
+    
+    # Проверка disposable доменов
+    if is_disposable_domain(domain):
+        return {'is_valid': False, 'status': Contact.BLACKLIST, 'reason': 'Disposable domain'}
+    
+    # Только проверка MX для всех доменов (без SMTP)
+    if not has_mx_record(domain):
+        return {'is_valid': False, 'status': Contact.INVALID, 'reason': 'No MX record'}
+    
+    return {'is_valid': True, 'status': Contact.VALID, 'reason': 'Valid email'}

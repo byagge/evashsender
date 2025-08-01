@@ -40,6 +40,7 @@ class Campaign(models.Model):
     recipients = models.ManyToManyField('mailer.Contact', through='CampaignRecipient', related_name='campaigns')
     template = models.ForeignKey('mail_templates.EmailTemplate', on_delete=models.SET_NULL, null=True, blank=True)
     sender_email = models.ForeignKey('emails.SenderEmail', on_delete=models.SET_NULL, null=True, blank=True)
+    sender_name = models.CharField(max_length=100, blank=True, default='')  # Имя отправителя для рассылки
     auto_send_at = models.DateTimeField(null=True, blank=True)  # Время автоматической отправки, если не одобрено
 
     def save(self, *args, **kwargs):

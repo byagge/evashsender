@@ -97,6 +97,9 @@ class CampaignSerializer(serializers.ModelSerializer):
         return obj.get_status_display()
 
     def get_sender_name(self, obj):
+        # Используем sender_name из кампании, если оно задано, иначе из sender_email
+        if obj.sender_name:
+            return obj.sender_name
         return obj.sender_email.sender_name if obj.sender_email else ''
 
     def get_reply_to(self, obj):

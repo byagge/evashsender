@@ -184,16 +184,26 @@ class CampaignViewSet(viewsets.ModelViewSet):
                     plain_text = re.sub(r'\s+', ' ', plain_text).strip()
 
                     # Send email
-                    # Генерируем имя отправителя, если оно не задано
-                    sender_name = campaign.sender_email.sender_name
+                    # Используем имя отправителя из кампании, если оно задано
+                    sender_name = campaign.sender_name
                     if not sender_name:
-                        # Извлекаем имя из email (часть до @)
-                        email_parts = campaign.sender_email.email.split('@')
-                        if len(email_parts) > 0:
-                            # Делаем первую букву заглавной и заменяем точки на пробелы
-                            sender_name = email_parts[0].replace('.', ' ').replace('_', ' ').title()
-                        else:
-                            sender_name = "Отправитель"
+                        # Если не задано в кампании, берем из sender_email
+                        sender_name = campaign.sender_email.sender_name
+                        if not sender_name:
+                            # Извлекаем имя из email (часть до @)
+                            email_parts = campaign.sender_email.email.split('@')
+                            if len(email_parts) > 0:
+                                email_name = email_parts[0]
+                                # Специальные случаи для известных email адресов
+                                if email_name == 'mednews':
+                                    sender_name = "Медновости"
+                                elif email_name == 'noreply':
+                                    sender_name = "VashSender"
+                                else:
+                                    # Делаем первую букву заглавной и заменяем точки на пробелы
+                                    sender_name = email_name.replace('.', ' ').replace('_', ' ').title()
+                            else:
+                                sender_name = "Отправитель"
                     
                     from_email = f"{sender_name} <{campaign.sender_email.email}>"
                     
