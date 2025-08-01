@@ -233,9 +233,62 @@ EMAIL_HOST_PASSWORD = ''
 DEFAULT_FROM_EMAIL = 'noreply@vashsender.ru'
 SERVER_EMAIL = DEFAULT_FROM_EMAIL  # от этого адреса Django шлёт системные письма
 
+
+# Logging configuration
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'formatters': {
+        'verbose': {
+            'format': '{levelname} {asctime} {module} {process:d} {thread:d} {message}',
+            'style': '{',
+        },
+        'simple': {
+            'format': '{levelname} {message}',
+            'style': '{',
+        },
+    },
+    'handlers': {
+        'console': {
+            'class': 'logging.StreamHandler',
+            'formatter': 'verbose',
+        },
+        'file': {
+            'class': 'logging.FileHandler',
+            'filename': 'django.log',
+            'formatter': 'verbose',
+        },
+    },
+    'loggers': {
+        'django': {
+            'handlers': ['console'],
+            'level': 'INFO',
+        },
+        'django.request': {
+            'handlers': ['console'],
+            'level': 'DEBUG',
+        },
+        'django.security': {
+            'handlers': ['console'],
+            'level': 'DEBUG',
+        },
+        'apps.campaigns': {
+            'handlers': ['console'],
+            'level': 'DEBUG',
+        },
+    },
+}
+
 # Custom error pages
 HANDLER404 = 'core.error_handlers.handler404'
 HANDLER500 = 'core.error_handlers.handler500'
 HANDLER403 = 'core.error_handlers.handler403'
 HANDLER400 = 'core.error_handlers.handler400'
 HANDLER401 = 'core.error_handlers.handler401'
+
+# DKIM settings
+DKIM_SELECTOR = 'ep1'  # Селектор для DKIM записей
+DKIM_KEYS_DIR = '/etc/opendkim/keys'  # Директория для хранения DKIM ключей
+
+# Password Reset settings
+PASSWORD_RESET_TIMEOUT = 86400  # 24 часа в секундах

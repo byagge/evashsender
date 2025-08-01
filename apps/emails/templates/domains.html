@@ -52,6 +52,7 @@
           // формы
           newDomain: '',
           newEmail: '',
+          newSenderName: '',
     
           // уведомления и спиннеры
           notification: null,
@@ -75,7 +76,8 @@
                 dkim: d.dkim_verified,
                 verified: d.is_verified,
                 addedDate: d.created_at.split('T')[0],
-                token: d.verification_token
+                token: d.verification_token,
+                dkim_dns_record: d.dkim_dns_record
               }));
               this.domains.forEach(d => this.isChecking[d.id] = false);
             } catch (e) {
@@ -174,6 +176,26 @@
               this.isChecking[id] = false;
             }
           },
+
+          async regenerateDkim(id) {
+            this.isChecking[id] = true;
+            try {
+              const res = await fetch(`${API_DOMAINS}${id}/regenerate-dkim/`, {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: { 'X-CSRFToken': getCSRFToken() }
+              });
+              if (!res.ok) throw new Error('Ошибка перегенерации DKIM');
+              const result = await res.json();
+              this.showNotification('DKIM ключи перегенерированы');
+              // Обновляем данные домена
+              await this.loadDomains();
+            } catch (e) {
+              this.showNotification(e.message, 'error');
+            } finally {
+              this.isChecking[id] = false;
+            }
+          },
     
           // --- EMAILS ---
           async loadEmails() {
@@ -208,7 +230,10 @@
                   'Content-Type': 'application/json',
                   'X-CSRFToken': getCSRFToken()
                 },
-                body: JSON.stringify({ email: this.newEmail.trim() })
+                body: JSON.stringify({ 
+                  email: this.newEmail.trim(),
+                  sender_name: this.newSenderName.trim() || ''
+                })
               });
               
               const data = await res.json();
@@ -217,6 +242,7 @@
               }
               
               this.newEmail = '';
+              this.newSenderName = '';
               this.showAddEmailModal = false;
               this.showNotification('Адрес отправителя добавлен, проверьте свой ящик');
               await this.loadEmails();
@@ -500,12 +526,30 @@
         <div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
             <div class="bg-white rounded-2xl p-6 w-full max-w-md">
                 <h3 class="text-lg font-semibold mb-4">Добавить адрес электронной почты отправителя</h3>
-                <input 
-                    type="email" 
-                    x-model="newEmail" 
-                    placeholder="hello@example.com" 
-                    class="w-full p-3 border border-gray-300 rounded-lg mb-4 focus:ring-2 focus:ring-blue-500 focus:border-transparent" 
-                />
+                
+                <!-- Email field -->
+                <div class="mb-4">
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Email адрес</label>
+                    <input 
+                        type="email" 
+                        x-model="newEmail" 
+                        placeholder="hello@example.com" 
+                        class="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent" 
+                    />
+                </div>
+                
+                <!-- Sender name field -->
+                <div class="mb-4">
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Имя отправителя (необязательно)</label>
+                    <input 
+                        type="text" 
+                        x-model="newSenderName" 
+                        placeholder="Медновости" 
+                        class="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent" 
+                    />
+                    <p class="text-xs text-gray-500 mt-1">Если не указано, будет сгенерировано автоматически из email</p>
+                </div>
+                
                 <div class="flex space-x-3">
                     <button 
                         x-on:click="handleAddEmail()" 
@@ -544,9 +588,9 @@
                     </div>
                     <p class="text-sm text-blue-700 mb-3">Добавьте эту TXT-запись в свой DNS:</p>
                     <div class="bg-white p-3 rounded border flex items-center justify-between">
-                        <code class="text-sm">v=spf1 include:emailpro.com ~all</code>
+                        <code class="text-sm">v=spf1 include:vashsender.ru ~all</code>
                         <button
-                            @click="copyToClipboard('v=spf1 include:emailpro.com ~all')"
+                            @click="copyToClipboard('v=spf1 include:vashsender.ru ~all')"
                             class="text-blue-600 hover:text-blue-700"
                         >
                             <i data-lucide="copy" class="w-4 h-4"></i>
@@ -554,9 +598,19 @@
                     </div>
                 </div>
                 <div class="bg-green-50 p-4 rounded-lg">
-                    <div class="flex items-center mb-2">
+                    <div class="flex items-center justify-between mb-2">
+                        <div class="flex items-center">
                         <i data-lucide="shield" class="w-5 h-5 text-green-600 mr-2"></i>
                         <h4 class="font-semibold text-green-800">DKIM-запись</h4>
+                        </div>
+                        <button
+                            @click="regenerateDkim(selectedDomain.id)"
+                            class="text-sm bg-green-600 text-white px-3 py-1 rounded hover:bg-green-700 transition-colors"
+                            :disabled="isChecking[selectedDomain.id]"
+                        >
+                            <span x-show="!isChecking[selectedDomain.id]">Перегенерировать</span>
+                            <span x-show="isChecking[selectedDomain.id]">Генерация...</span>
+                        </button>
                     </div>
                     <p class="text-sm text-green-700 mb-3">Добавьте эту TXT-запись с селектором «ep1»:</p>
                     <div class="bg-white p-3 rounded border">

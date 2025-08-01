@@ -36,8 +36,17 @@ class CampaignModeration(models.Model):
         self.campaign.status = 'sending'
         self.campaign.save()
         
-        # Здесь можно добавить логику отправки письма
-        # Например, запустить асинхронную задачу для отправки
+        # Запускаем фактическую отправку писем
+        try:
+            from apps.campaigns.views import CampaignViewSet
+            viewset = CampaignViewSet()
+            viewset._send_sync(self.campaign)
+            print(f"Кампания {self.campaign.name} успешно отправлена после одобрения модератором")
+        except Exception as e:
+            print(f"Ошибка при отправке кампании {self.campaign.name} после одобрения: {e}")
+            # Если отправка не удалась, меняем статус на failed
+            self.campaign.status = 'failed'
+            self.campaign.save()
 
     def reject(self, moderator, reason):
         """Отклонить кампанию с указанием причины"""

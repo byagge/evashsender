@@ -44,7 +44,8 @@ class Campaign(models.Model):
 
     def save(self, *args, **kwargs):
         if not self.pk:  # Новый объект
-            if not self.user.is_trusted_user:
+            # Проверяем, что пользователь существует и не является доверенным
+            if self.user and not self.user.is_trusted_user:
                 self.status = 'pending'
                 # Устанавливаем время автоматической отправки через 24 часа
                 self.auto_send_at = timezone.now() + timezone.timedelta(hours=24)

@@ -94,13 +94,18 @@
                         {% endif %}
                     </div>
 
-                    <div class="flex items-center mb-6">
-                        <input type="checkbox" 
-                               name="remember" 
-                               id="remember" 
-                               class="w-4 h-4 text-[#1877ff] border-gray-300 rounded focus:ring-[#1877ff]"
-                               {% if data.remember %}checked{% endif %}>
-                        <label for="remember" class="ml-2 text-[#6b7a99] text-sm">Запомнить меня</label>
+                    <div class="flex items-center justify-between mb-6">
+                        <div class="flex items-center">
+                            <input type="checkbox" 
+                                   name="remember" 
+                                   id="remember" 
+                                   class="w-4 h-4 text-[#1877ff] border-gray-300 rounded focus:ring-[#1877ff]"
+                                   {% if data.remember %}checked{% endif %}>
+                            <label for="remember" class="ml-2 text-[#6b7a99] text-sm">Запомнить меня</label>
+                        </div>
+                        <a href="{% url 'accounts:password_reset' %}" class="text-[#1877ff] text-sm hover:underline">
+                            Забыли пароль?
+                        </a>
                     </div>
 
                     <button type="submit" 

@@ -7,6 +7,39 @@ class ContactSerializer(serializers.ModelSerializer):
     class Meta:
         model = Contact
         fields = ['id', 'email', 'status', 'added_date']
+    
+    def validate_email(self, value):
+        """Валидация email адреса"""
+        from .utils import validate_email_production
+        
+        # Приводим к нижнему регистру
+        email = value.lower().strip()
+        
+        # Проверяем email с продакшен-валидацией
+        validation_result = validate_email_production(email)
+        
+        if not validation_result['is_valid']:
+            error_msg = '; '.join(validation_result['errors'])
+            raise serializers.ValidationError(error_msg)
+        
+        # Возвращаем очищенный email
+        return email
+    
+    def validate(self, data):
+        """Дополнительная валидация"""
+        from .utils import validate_email_production
+        
+        email = data.get('email', '')
+        if email:
+            validation_result = validate_email_production(email)
+            
+            # Если email валиден, но есть предупреждения, устанавливаем правильный статус
+            if validation_result['is_valid']:
+                data['status'] = validation_result['status']
+            else:
+                data['status'] = Contact.INVALID
+        
+        return data
 
 class ContactListSerializer(serializers.ModelSerializer):
     # убираем source=… — DRF найдёт total_contacts, valid_count и т.д. по name

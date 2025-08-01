@@ -1,0 +1,105 @@
+{% load wagtailcore_tags %}
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ошибка верификации - vashsender</title>
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
+    <style>
+        body { 
+            font-family: 'Montserrat', Arial, sans-serif; 
+        }
+    </style>
+</head>
+<body class="bg-[#f5f6fa] text-[#222] min-h-screen">
+    <!-- Header -->
+    <header class="flex items-center justify-between px-6 md:px-20 pt-8">
+        <a href="/" class="flex items-center text-2xl font-bold text-[#222] no-underline">
+            <svg width="32" height="32" fill="none" class="mr-3" xmlns="http://www.w3.org/2000/svg">
+                <rect x="4" y="8" width="24" height="16" rx="4" fill="#1877ff"/>
+                <path d="M4 8l12 10L28 8" stroke="#fff" stroke-width="2"/>
+            </svg>
+            vashsender
+        </a>
+        <nav class="flex gap-8 items-center">
+            <a href="/accounts/signup/" class="bg-[#1877ff] hover:bg-[#125fd1] text-white font-bold rounded-md px-6 py-2 text-base transition">Регистрация</a>
+        </nav>
+    </header>
+
+    <!-- Main Content -->
+    <div class="flex flex-col md:flex-row items-center justify-center px-6 md:px-20 pt-12 pb-8 min-h-[80vh]">
+        <!-- Left - Hero Section -->
+        <div class="flex-1 flex flex-col items-start gap-8 mb-12 md:mb-0">
+            <h1 class="text-4xl md:text-6xl font-extrabold text-[#222a38] leading-tight">
+                ОШИБКА<br>ВЕРИФИКАЦИИ
+            </h1>
+            <p class="text-lg text-[#6b7a99] max-w-xl">
+                Ссылка для подтверждения email недействительна или устарела. Запросите новую ссылку для верификации.
+            </p>
+            <div class="flex items-center gap-2 text-[#6b7a99] text-base">
+                <i class="fa-solid fa-circle-exclamation text-red-500 text-lg"></i>
+                Проверьте правильность ссылки или обратитесь в поддержку
+            </div>
+        </div>
+
+        <!-- Right - Error Form -->
+        <div class="flex-1 flex justify-center">
+            <div class="bg-white rounded-2xl shadow-lg p-8 w-full max-w-md">
+                <div class="text-center mb-8">
+                    <div class="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                        <i class="fa-solid fa-exclamation-triangle text-red-500 text-2xl"></i>
+                    </div>
+                    <h2 class="text-2xl font-bold text-[#222a38] mb-2">Верификация не удалась</h2>
+                    <p class="text-[#6b7a99]">Ссылка для подтверждения email недействительна</p>
+                </div>
+
+                <div class="bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded-lg mb-6">
+                    <div class="flex items-start">
+                        <i class="fa-solid fa-info-circle mt-1 mr-2"></i>
+                        <div>
+                            <p class="font-medium">Возможные причины:</p>
+                            <ul class="mt-2 text-sm space-y-1">
+                                <li>• Ссылка устарела (действует 24 часа)</li>
+                                <li>• Ссылка была уже использована</li>
+                                <li>• Неверный формат ссылки</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="space-y-4">
+                    <a href="/accounts/login/" 
+                       class="w-full bg-[#1877ff] hover:bg-[#125fd1] text-white font-bold rounded-lg px-6 py-3 text-center block transition">
+                        Войти в аккаунт
+                    </a>
+                    
+                    <a href="/accounts/signup/" 
+                       class="w-full bg-white border border-[#1877ff] text-[#1877ff] hover:bg-[#1877ff] hover:text-white font-bold rounded-lg px-6 py-3 text-center block transition">
+                        Зарегистрироваться заново
+                    </a>
+                    
+                    <a href="/" 
+                       class="w-full bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium rounded-lg px-6 py-3 text-center block transition">
+                        Вернуться на главную
+                    </a>
+                </div>
+
+                <div class="mt-8 pt-6 border-t border-gray-200 text-center">
+                    <p class="text-[#6b7a99] text-sm">
+                        Нужна помощь? 
+                        <a href="/support/" class="text-[#1877ff] hover:underline">Обратитесь в поддержку</a>
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <footer class="text-center py-8 text-[#6b7a99] text-sm">
+        <p>&copy; 2024 vashsender. Все права защищены.</p>
+    </footer>
+</body>
+</html> 

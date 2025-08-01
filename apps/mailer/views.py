@@ -83,8 +83,14 @@ class ContactListViewSet(viewsets.ModelViewSet):
 
         ser = ContactSerializer(data=request.data)
         if ser.is_valid():
-            ser.save(contact_list=contact_list)
-            return Response(ser.data, status=status.HTTP_201_CREATED)
+            # Валидация уже выполнена в сериализаторе
+            contact = ser.save(contact_list=contact_list)
+            
+            # Возвращаем результат с информацией о валидации
+            response_data = ser.data
+            response_data['validation_message'] = 'Контакт добавлен и прошел валидацию'
+            
+            return Response(response_data, status=status.HTTP_201_CREATED)
         return Response(ser.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
@@ -112,20 +118,44 @@ class ContactListViewSet(viewsets.ModelViewSet):
 
         emails = parse_emails(file_obj, file_obj.name)
         added = 0
+        invalid_count = 0
+        blacklisted_count = 0
+        
         for email in emails:
-            status_code = classify_email(email)
-            obj, created = Contact.objects.get_or_create(
-                contact_list=contact_list,
-                email=email,
-                defaults={'status': status_code}
-            )
-            if not created and obj.status != status_code:
-                obj.status = status_code
-                obj.save(update_fields=['status'])
-            if created:
-                added += 1
+            # Используем продакшен-валидацию
+            from .utils import validate_email_production
+            validation_result = validate_email_production(email)
+            
+            if validation_result['is_valid']:
+                status_code = validation_result['status']
+                obj, created = Contact.objects.get_or_create(
+                    contact_list=contact_list,
+                    email=email,
+                    defaults={'status': status_code}
+                )
+                if not created and obj.status != status_code:
+                    obj.status = status_code
+                    obj.save(update_fields=['status'])
+                if created:
+                    added += 1
+                    if status_code == Contact.BLACKLIST:
+                        blacklisted_count += 1
+            else:
+                # Добавляем невалидные email как INVALID
+                obj, created = Contact.objects.get_or_create(
+                    contact_list=contact_list,
+                    email=email,
+                    defaults={'status': Contact.INVALID}
+                )
+                if created:
+                    invalid_count += 1
 
-        return Response({'imported': added}, status=status.HTTP_201_CREATED)
+        return Response({
+            'imported': added,
+            'invalid_count': invalid_count,
+            'blacklisted_count': blacklisted_count,
+            'total_processed': len(emails)
+        }, status=status.HTTP_201_CREATED)
 
     @action(detail=True, methods=['post'], url_path='export')
     def export_contacts(self, request, pk=None):

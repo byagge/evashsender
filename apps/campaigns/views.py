@@ -72,7 +72,6 @@ class CampaignViewSet(viewsets.ModelViewSet):
         now = timezone.now()
         start_of_day = now.replace(hour=0, minute=0, second=0, microsecond=0)
         start_of_month = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
-        from core.apps.campaigns.models import CampaignRecipient
         sent_today = CampaignRecipient.objects.filter(
             campaign__user=user,
             sent_at__gte=start_of_day
@@ -155,55 +154,86 @@ class CampaignViewSet(viewsets.ModelViewSet):
             for contact_list in campaign.contact_lists.all():
                 contacts.update(contact_list.contacts.all())
 
+            print(f"Отправляем рассылку '{campaign.name}' на {len(contacts)} контактов")
+
             # Send email to each contact
             for contact in contacts:
-                # Create tracking record
-                tracking = EmailTracking.objects.create(
-                    campaign=campaign,
-                    contact=contact,
-                    tracking_id=str(uuid.uuid4())
-                )
+                try:
+                    # Create tracking record
+                    tracking = EmailTracking.objects.create(
+                        campaign=campaign,
+                        contact=contact,
+                        tracking_id=str(uuid.uuid4())
+                    )
 
-                # Prepare email content with tracking
-                html_content = campaign.template.html_content
-                if campaign.content:
-                    html_content = html_content.replace('{{content}}', campaign.content)
+                    # Prepare email content with tracking
+                    html_content = campaign.template.html_content
+                    if campaign.content:
+                        html_content = html_content.replace('{{content}}', campaign.content)
 
-                # Add tracking pixel
-                tracking_pixel = f'<img src="/campaigns/{campaign.id}/track-open/?tracking_id={tracking.tracking_id}" width="1" height="1" />'
-                html_content = html_content.replace('</body>', f'{tracking_pixel}</body>')
+                    # Add tracking pixel (only if </body> exists)
+                    tracking_pixel = f'<img src="/campaigns/{campaign.id}/track-open/?tracking_id={tracking.tracking_id}" width="1" height="1" />'
+                    if '</body>' in html_content:
+                        html_content = html_content.replace('</body>', f'{tracking_pixel}</body>')
+                    else:
+                        html_content += tracking_pixel
 
-                # Replace tracking links
-                html_content = html_content.replace('href="', f'href="/campaigns/{campaign.id}/track-click/?tracking_id={tracking.tracking_id}&url=')
+                    # Create plain text version
+                    import re
+                    plain_text = re.sub(r'<[^>]+>', '', html_content)
+                    plain_text = re.sub(r'\s+', ' ', plain_text).strip()
 
-                # Send email
-                email = EmailMultiAlternatives(
-                    subject=campaign.subject,
-                    body=html_content,  # Plain text version
-                    from_email=f"{campaign.sender_email.sender_name} <{campaign.sender_email.email}>",
-                    to=[contact.email],
-                    reply_to=[campaign.sender_email.reply_to] if campaign.sender_email.reply_to else None
-                )
-                email.attach_alternative(html_content, "text/html")
-                email.send()
+                    # Send email
+                    # Генерируем имя отправителя, если оно не задано
+                    sender_name = campaign.sender_email.sender_name
+                    if not sender_name:
+                        # Извлекаем имя из email (часть до @)
+                        email_parts = campaign.sender_email.email.split('@')
+                        if len(email_parts) > 0:
+                            # Делаем первую букву заглавной и заменяем точки на пробелы
+                            sender_name = email_parts[0].replace('.', ' ').replace('_', ' ').title()
+                        else:
+                            sender_name = "Отправитель"
+                    
+                    from_email = f"{sender_name} <{campaign.sender_email.email}>"
+                    
+                    email = EmailMultiAlternatives(
+                        subject=campaign.subject,
+                        body=plain_text,
+                        from_email=from_email,
+                        to=[contact.email],
+                        reply_to=[campaign.sender_email.reply_to] if campaign.sender_email.reply_to else None
+                    )
+                    email.attach_alternative(html_content, "text/html")
+                    
+                    print(f"Отправляем письмо на {contact.email}")
+                    email.send()
+                    print(f"Письмо успешно отправлено на {contact.email}")
 
-                # Mark as sent in CampaignRecipient
-                CampaignRecipient.objects.create(
-                    campaign=campaign,
-                    contact=contact,
-                    is_sent=True,
-                    sent_at=timezone.now()
-                )
+                    # Mark as sent in CampaignRecipient
+                    CampaignRecipient.objects.create(
+                        campaign=campaign,
+                        contact=contact,
+                        is_sent=True,
+                        sent_at=timezone.now()
+                    )
 
-                # Mark as delivered
-                tracking.mark_as_delivered()
+                    # Mark as delivered
+                    tracking.mark_as_delivered()
+
+                except Exception as e:
+                    print(f"Ошибка отправки письма на {contact.email}: {str(e)}")
+                    # Continue with next contact instead of failing entire campaign
+                    continue
 
             # Update campaign status
             campaign.status = Campaign.STATUS_SENT
             campaign.sent_at = timezone.now()
             campaign.save(update_fields=['status', 'sent_at'])
+            print(f"Кампания '{campaign.name}' завершена")
 
         except Exception as e:
+            print(f"Критическая ошибка в кампании '{campaign.name}': {str(e)}")
             campaign.status = Campaign.STATUS_FAILED
             campaign.save(update_fields=['status'])
             raise e

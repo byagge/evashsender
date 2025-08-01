@@ -27,6 +27,14 @@ RESERVED_SLDS = {
     'invalid.com', 'localhost.com', 'dummy.com', 'fake.com', 'spam.com'
 }
 
+# Важные домены для SMTP проверки
+IMPORTANT_DOMAINS = {
+    'gmail.com', 'yahoo.com', 'hotmail.com', 'outlook.com',
+    'yandex.ru', 'mail.ru', 'rambler.ru', 'bk.ru',
+    'icloud.com', 'protonmail.com', 'zoho.com', 'aol.com',
+    'live.com', 'msn.com', 'me.com', 'mac.com'
+}
+
 def load_disposable_domains():
     """
     Загружает список disposable-доменов только один раз при первом вызове.
@@ -171,6 +179,114 @@ def is_disposable_domain(domain: str) -> bool:
     """
     disposable_domains = load_disposable_domains()
     return domain.lower() in disposable_domains
+
+def is_important_domain(domain: str) -> bool:
+    """
+    Проверка, является ли домен важным для SMTP проверки
+    """
+    return domain.lower() in IMPORTANT_DOMAINS
+
+def check_smtp_connection(email: str) -> dict:
+    """
+    Быстрая SMTP проверка без отправки письма
+    """
+    try:
+        domain = email.split('@', 1)[1]
+        
+        # Получаем MX записи
+        resolver = dns.resolver.Resolver()
+        resolver.timeout = 5
+        resolver.lifetime = 10
+        mx_records = resolver.resolve(domain, 'MX')
+        mx_host = str(sorted(mx_records, key=lambda x: x.preference)[0].exchange)
+        
+        # Подключаемся к SMTP серверу
+        with socket.create_connection((mx_host, 25), timeout=5) as sock:
+            # Читаем приветствие сервера
+            response = sock.recv(1024)
+            if not response.startswith(b'220'):
+                return {'valid': False, 'error': 'SMTP сервер недоступен'}
+            
+            # Отправляем HELO
+            sock.send(b'HELO test.com\r\n')
+            response = sock.recv(1024)
+            
+            if not response.startswith(b'250'):
+                return {'valid': False, 'error': 'SMTP сервер недоступен'}
+            
+            # Проверяем MAIL FROM
+            sock.send(b'MAIL FROM:<test@test.com>\r\n')
+            response = sock.recv(1024)
+            
+            if not response.startswith(b'250'):
+                return {'valid': False, 'error': 'SMTP сервер отклоняет отправителей'}
+            
+            # Проверяем RCPT TO (но не отправляем)
+            sock.send(f'RCPT TO:<{email}>\r\n'.encode())
+            response = sock.recv(1024)
+            
+            if response.startswith(b'250'):
+                return {'valid': True, 'error': None}
+            elif response.startswith(b'550'):
+                return {'valid': False, 'error': 'Email адрес не существует'}
+            else:
+                return {'valid': False, 'error': 'SMTP сервер недоступен'}
+                
+    except Exception as e:
+        return {'valid': False, 'error': f'Ошибка подключения: {str(e)}'}
+
+def validate_email_production(email: str) -> dict:
+    """
+    Продакшен-валидация: быстрая + точная
+    """
+    result = {
+        'email': email,
+        'is_valid': False,
+        'status': Contact.INVALID,
+        'confidence': 'low',
+        'errors': [],
+        'warnings': []
+    }
+    
+    # УРОВЕНЬ 1: Быстрые проверки (0.1 сек)
+    if not is_syntax_valid(email):
+        result['errors'].append('Неверный синтаксис email адреса')
+        return result
+    
+    try:
+        domain = email.split('@', 1)[1].lower()
+    except (ValueError, IndexError):
+        result['errors'].append('Не удалось извлечь домен')
+        return result
+    
+    if is_reserved_domain(domain):
+        result['errors'].append('Зарезервированный домен')
+        return result
+    
+    if is_disposable_domain(domain):
+        result['status'] = Contact.BLACKLIST
+        result['confidence'] = 'high'
+        result['warnings'].append('Временный email домен')
+        return result
+    
+    # УРОВЕНЬ 2: DNS проверки (0.5 сек)
+    if not has_mx_record(domain):
+        result['errors'].append('Домен не имеет MX записей (не может принимать почту)')
+        return result
+    
+    # УРОВЕНЬ 3: SMTP проверка (2-5 сек) - ТОЛЬКО для важных доменов
+    if is_important_domain(domain):
+        smtp_result = check_smtp_connection(email)
+        if not smtp_result['valid']:
+            result['errors'].append(smtp_result['error'])
+            return result
+        result['confidence'] = 'very_high'
+    else:
+        result['confidence'] = 'medium'
+    
+    result['is_valid'] = True
+    result['status'] = Contact.VALID
+    return result
 
 def classify_email(email: str) -> str:
     """
