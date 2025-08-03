@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Тест CloudPayments</title>
+    <script src="https://widget.cloudpayments.ru/bundles/cloudpayments.js"></script>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+</head>
+<body>
+    <h1>Тест CloudPayments</h1>
+    <button id="payButton">Оплатить 100₽</button>
+
+    <script>
+        // Тестовые данные
+        var testData = {
+            id: 1,
+            title: 'Тестовый тариф',
+            price: 100,
+            userEmail: 'test@example.com'
+        };
+
+        $('#payButton').click(function() {
+            console.log('Начинаем оплату...');
+            
+            // Создаем виджет CloudPayments
+            var payments = new cp.CloudPayments({
+                yandexPaySupport: false,
+                applePaySupport: false,
+                googlePaySupport: false,
+                masterPassSupport: false,
+                tinkoffInstallmentSupport: false
+            });
+            
+            // Обработчик завершения оплаты
+            payments.oncomplete = (result) => {
+                console.log('Payment completed:', result);
+            };
+            
+            // Формируем чек для фискализации
+            var receipt = {
+                Items: [{
+                    label: testData.title,
+                    price: testData.price,
+                    quantity: 1.00,
+                    amount: testData.price,
+                    vat: 20,
+                    method: 0,
+                    object: 0
+                }],
+                taxationSystem: 0,
+                email: testData.userEmail,
+                phone: '',
+                isBso: false,
+                amounts: {
+                    electronic: testData.price,
+                    advancePayment: 0.00,
+                    credit: 0.00,
+                    provision: 0.00
+                }
+            };
+
+            // Данные для рекуррентных платежей
+            var data = {
+                CloudPayments: {
+                    CustomerReceipt: receipt,
+                    recurrent: {
+                        interval: 'Month',
+                        period: 1,
+                        customerReceipt: receipt
+                    }
+                }
+            };
+            
+            // Запускаем оплату с Promise
+            payments.pay("charge", {
+                publicId: 'test_api_00000000000000000000002',
+                accountId: testData.userEmail,
+                description: 'Подписка на тариф ' + testData.title + ' - vashsender',
+                amount: testData.price,
+                currency: 'RUB',
+                invoiceId: 'TEST-' + testData.id + '-' + Date.now(),
+                data: data
+            }).then((result) => {
+                // Успешная оплата
+                console.log('Payment successful:', result);
+                alert('Оплата прошла успешно!');
+            }).catch((error) => {
+                // Ошибка оплаты
+                console.error('Payment failed:', error);
+                alert('Оплата не прошла: ' + (error.message || 'Неизвестная ошибка'));
+            });
+        });
+    </script>
+</body>
+</html> 

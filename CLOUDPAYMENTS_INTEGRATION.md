@@ -1,298 +1,248 @@
-# Интеграция с CloudPayments
+# Интеграция CloudPayments
 
 ## Обзор
 
-Реализована полная интеграция с платежной системой CloudPayments для обработки оплаты тарифов. Система поддерживает одноразовые платежи и рекуррентные подписки.
+Система интегрирована с CloudPayments для обработки платежей за тарифы. Интеграция включает:
 
-## Основные компоненты
+- Виджет CloudPayments для оплаты
+- Рекуррентные платежи (подписки)
+- Фискализация (чеки)
+- Автоматическая активация тарифов после оплаты
 
-### 1. Модель CloudPaymentsTransaction
+## Компоненты
 
+### 1. Frontend (purchase_confirmation.html)
+
+**Файл:** `apps/main/templates/purchase_confirmation.html`
+
+**Основные функции:**
+- Инициализация виджета CloudPayments
+- Формирование чека для фискализации
+- Обработка успешных/неуспешных платежей
+- Отправка данных на сервер для активации тарифа
+
+**Ключевые особенности:**
+```javascript
+// Создание виджета с отключенными дополнительными методами оплаты
+var payments = new cp.CloudPayments({
+    yandexPaySupport: false,
+    applePaySupport: false,
+    googlePaySupport: false,
+    masterPassSupport: false,
+    tinkoffInstallmentSupport: false
+});
+
+// Запуск оплаты с рекуррентными платежами
+payments.pay("charge", {
+    publicId: 'test_api_00000000000000000000002',
+    accountId: planData.userEmail,
+    description: 'Подписка на тариф ' + planData.title + ' - vashsender',
+    amount: planData.price,
+    currency: 'RUB',
+    invoiceId: 'PLAN-' + planData.id + '-' + Date.now(),
+    data: data // Данные для рекуррентных платежей и чека
+});
+```
+
+### 2. Backend (views.py)
+
+**Файл:** `apps/billing/views.py`
+
+**Основные функции:**
+- `activate_payment()` - активация тарифа после успешной оплаты
+- `confirm_plan()` - страница подтверждения покупки
+- `plan_history()` - история тарифов
+
+**Ключевые особенности:**
 ```python
-class CloudPaymentsTransaction(models.Model):
-    user = models.ForeignKey('accounts.User', ...)
-    plan = models.ForeignKey(Plan, ...)
-    cloudpayments_id = models.CharField(unique=True)
-    amount = models.DecimalField()
-    currency = models.CharField(default='RUB')
-    status = models.CharField(choices=STATUS_CHOICES)
-    # ... другие поля
+@login_required
+@require_http_methods(["POST"])
+def activate_payment(request):
+    """Активация тарифа после успешной оплаты через CloudPayments"""
+    try:
+        data = json.loads(request.body)
+        plan_id = data.get('plan_id')
+        payment_data = data.get('payment_data', {})
+        
+        # Создание записи о купленном тарифе
+        with transaction.atomic():
+            purchased_plan = PurchasedPlan.objects.create(
+                user=user,
+                plan=plan,
+                start_date=timezone.now(),
+                end_date=timezone.now() + timedelta(days=30),
+                is_active=True,
+                amount_paid=plan.get_final_price(),
+                payment_method='cloudpayments',
+                transaction_id=payment_data.get('invoiceId'),
+                cloudpayments_data=payment_data
+            )
+            
+            # Обновление текущего плана пользователя
+            user.current_plan = plan
+            user.plan_expiry = purchased_plan.end_date
+            user.save()
 ```
 
-### 2. Сервис CloudPaymentsService
+### 3. Модели данных
 
-Основной класс для работы с API CloudPayments:
+**Файл:** `apps/billing/models.py`
 
-- `create_payment()` - создание платежа
-- `verify_signature()` - проверка подписи webhook
-- `process_webhook()` - обработка уведомлений
-- `get_transaction_status()` - получение статуса транзакции
-- `refund_transaction()` - возврат средств
-- `create_recurring_payment()` - рекуррентные платежи
+**Основные модели:**
+- `PurchasedPlan` - купленные тарифы пользователей
+- `CloudPaymentsTransaction` - транзакции CloudPayments
+- `BillingSettings` - настройки биллинга
 
-### 3. API Endpoints
-
+**Новые поля:**
+```python
+class PurchasedPlan(models.Model):
+    # ... существующие поля ...
+    cloudpayments_data = models.JSONField(
+        null=True, 
+        blank=True, 
+        help_text=_("Данные от CloudPayments")
+    )
 ```
-POST /billing/api/cloudpayments/create_payment/
-GET  /billing/api/cloudpayments/transaction_status/
-GET  /billing/api/cloudpayments/transactions/
-POST /billing/webhook/cloudpayments/
-```
+
+### 4. Страница управления тарифами
+
+**Файл:** `apps/billing/templates/billing/billing.html`
+
+**Функции:**
+- Отображение текущего тарифа
+- История тарифов
+- Управление автопродлением
+- Переход к изменению тарифа
 
 ## Настройка
 
-### 1. Настройки в админке
+### 1. CloudPayments Public ID
 
-В админке Django необходимо настроить:
-
-- `cloudpayments_public_id` - Public ID из личного кабинета CloudPayments
-- `cloudpayments_api_secret` - API Secret для подписи webhook
-- `cloudpayments_test_mode` - тестовый режим (True/False)
-
-### 2. Webhook URL
-
-В личном кабинете CloudPayments указать webhook URL:
-```
-https://yourdomain.com/billing/webhook/cloudpayments/
+Замените тестовый Public ID на ваш:
+```javascript
+publicId: 'test_api_00000000000000000000002', // Замените на ваш
 ```
 
-### 3. Настройки безопасности
+### 2. Настройки в Django
 
-- Проверка подписи всех webhook запросов
-- Валидация данных транзакций
-- Логирование всех операций
-
-## Процесс оплаты
-
-### 1. Создание платежа
-
+В `apps/billing/models.py` в модели `BillingSettings`:
 ```python
-# Создаем платеж
-payment_data = cloudpayments_service.create_payment(
-    user=user,
-    plan=plan,
-    amount=plan.get_final_price()
+cloudpayments_public_id = models.CharField(
+    max_length=100, 
+    blank=True, 
+    help_text=_("Public ID CloudPayments")
 )
-
-# Перенаправляем на страницу оплаты
-return redirect('billing:payment', transaction_id=payment_data['transaction_id'])
+cloudpayments_api_secret = models.CharField(
+    max_length=100, 
+    blank=True, 
+    help_text=_("API Secret CloudPayments")
+)
+cloudpayments_test_mode = models.BooleanField(
+    default=True, 
+    help_text=_("Тестовый режим CloudPayments")
+)
 ```
 
-### 2. Страница оплаты
+### 3. Миграции
 
-Пользователь попадает на страницу с виджетом CloudPayments, где может:
-- Ввести данные карты
-- Выбрать способ оплаты
-- Подтвердить платеж
-
-### 3. Обработка результата
-
-После оплаты CloudPayments отправляет webhook с результатом:
-
-```python
-@csrf_exempt
-def cloudpayments_webhook(request):
-    data = request.POST.dict()
-    signature = request.headers.get('X-Signature', '')
-    
-    result = cloudpayments_service.process_webhook(data, signature)
-    
-    if result.get('success'):
-        # Активируем тариф
-        return JsonResponse({'status': 'ok'})
-    else:
-        return JsonResponse({'status': 'error'}, status=400)
-```
-
-### 4. Активация тарифа
-
-При успешной оплате автоматически:
-- Создается запись `PurchasedPlan`
-- Обновляется текущий тариф пользователя
-- Устанавливается срок действия (30 дней)
-
-## Безопасность
-
-### 1. Проверка подписи
-
-```python
-def verify_signature(self, data, signature):
-    # Создаем строку для подписи
-    sign_string = ""
-    for key in sorted(data.keys()):
-        if key != "Signature":
-            sign_string += str(data[key]) + ";"
-    
-    # Создаем подпись
-    expected_signature = hmac.new(
-        self.api_secret.encode('utf-8'),
-        sign_string.encode('utf-8'),
-        hashlib.sha256
-    ).hexdigest()
-    
-    return hmac.compare_digest(signature, expected_signature)
-```
-
-### 2. Валидация данных
-
-- Проверка существования транзакции
-- Валидация суммы платежа
-- Проверка принадлежности транзакции пользователю
-
-### 3. Обработка ошибок
-
-- Логирование всех ошибок
-- Graceful handling исключений
-- Информативные сообщения пользователю
-
-## Команды управления
-
-### Создание расширенных тарифов
-
+Примените миграции для новых полей:
 ```bash
-# Создать все тарифы
-python manage.py create_extended_plans
-
-# Принудительно пересоздать тарифы
-python manage.py create_extended_plans --force
-```
-
-### Обновление счётчиков
-
-```bash
-# Обновить счётчики писем
-python manage.py update_email_counts
+python manage.py makemigrations billing
+python manage.py migrate billing
 ```
 
 ## Тестирование
 
-### Тестовые карты CloudPayments
+### 1. Тестовые карты CloudPayments
 
 Для тестирования используйте:
+- **Успешная оплата:** 4111 1111 1111 1111
+- **Неуспешная оплата:** 4444 4444 4444 4444
+- **Любая будущая дата** (например, 12/25)
+- **Любой CVC** (например, 123)
 
-- **Успешная оплата**: `4111 1111 1111 1111`
-- **Недостаточно средств**: `4444 4444 4444 4444`
-- **Карта заблокирована**: `4000 0000 0000 0002`
+### 2. Тестовый файл
 
-### Тестовый режим
+Создан файл `test_cloudpayments.html` для изолированного тестирования виджета.
 
-В тестовом режиме:
-- Все платежи проходят без реального списания
-- Можно использовать тестовые карты
-- Webhook отправляется в тестовом окружении
+## Безопасность
+
+### 1. Content Security Policy
+
+Система настроена для работы с CSP. Виджет CloudPayments загружается с `https://widget.cloudpayments.ru`.
+
+### 2. CSRF Protection
+
+Все POST запросы защищены CSRF токенами.
+
+### 3. Аутентификация
+
+Все endpoints требуют аутентификации пользователя.
 
 ## Мониторинг
 
-### Логирование
+### 1. Логирование
 
-Все операции логируются:
-- Создание платежей
-- Обработка webhook
-- Ошибки и исключения
-- Активация тарифов
-
-### Статистика
-
-В админке доступна статистика:
-- Количество транзакций
-- Суммы платежей
-- Успешность операций
-- Популярность тарифов
-
-## Автопродление
-
-### Настройка
-
-В настройках биллинга:
-- `auto_renewal_enabled` - включить автопродление
-- `auto_renewal_days_before` - дней до истечения
-
-### Процесс
-
-1. За 3 дня до истечения тарифа система проверяет активные тарифы
-2. Если включено автопродление, создается новый платеж
-3. При успешной оплате тариф продлевается автоматически
-
-## Возврат средств
-
-### API для возврата
-
+Включено детальное логирование:
 ```python
-# Полный возврат
-result = cloudpayments_service.refund_transaction(transaction_id)
-
-# Частичный возврат
-result = cloudpayments_service.refund_transaction(
-    transaction_id, 
-    amount=100.00
-)
+print(f"DEBUG: activate_payment called with user {request.user.email}")
+print(f"DEBUG: Received data: {data}")
+print(f"DEBUG: PurchasedPlan created with ID: {purchased_plan.id}")
 ```
 
-### Автоматический возврат
+### 2. Обработка ошибок
 
-При отмене тарифа в течение 14 дней:
-- Автоматический возврат средств
-- Деактивация тарифа
-- Уведомление пользователя
+Все ошибки логируются и возвращают понятные сообщения пользователю.
 
-## Интеграция с дашбордом
+## Расширение
 
-### Отображение информации
+### 1. Webhook поддержка
 
-В дашборде показывается:
-- Текущий тариф и его статус
-- Остаток писем/дней
-- История транзакций
-- Кнопка для смены тарифа
-
-### Уведомления
-
-Система уведомляет о:
-- Истечении тарифа
-- Успешной оплате
-- Ошибках платежа
-- Автопродлении
-
-## Развертывание
-
-### 1. Миграции
-
-```bash
-python manage.py migrate billing
-```
-
-### 2. Создание тарифов
-
-```bash
-python manage.py create_extended_plans
-```
-
-### 3. Настройка CloudPayments
-
-1. Получить Public ID и API Secret в личном кабинете
-2. Настроить webhook URL
-3. Указать настройки в админке Django
-
-### 4. Тестирование
-
-1. Включить тестовый режим
-2. Протестировать оплату тестовыми картами
-3. Проверить webhook
-4. Переключить в продакшн режим
-
-## Поддержка
-
-### Документация CloudPayments
-
-- [API документация](https://developers.cloudpayments.ru/)
-- [Тестирование](https://developers.cloudpayments.ru/#testing)
-- [Webhook](https://developers.cloudpayments.ru/#webhook)
-
-### Логи и отладка
-
-Все операции логируются в Django logs:
+Подготовлена структура для webhook'ов CloudPayments:
 ```python
-import logging
-logger = logging.getLogger(__name__)
-logger.info(f"Payment created: {transaction.id}")
-``` 
+# @csrf_exempt
+# @require_http_methods(["POST"])
+# def cloudpayments_webhook(request):
+#     """Webhook для обработки уведомлений от CloudPayments"""
+```
+
+### 2. Дополнительные методы оплаты
+
+Можно включить дополнительные методы оплаты:
+```javascript
+var payments = new cp.CloudPayments({
+    yandexPaySupport: true,
+    applePaySupport: true,
+    googlePaySupport: true,
+    // ...
+});
+```
+
+## Устранение неполадок
+
+### 1. Ошибка 404 на /billing/
+
+Проверьте, что URL добавлен в `apps/billing/urls.py`:
+```python
+path('', views.billing_page, name='billing_page'),
+```
+
+### 2. Ошибка 500 при активации тарифа
+
+Проверьте:
+- Применены ли миграции
+- Импортирован ли `transaction` в `views.py`
+- Правильность данных от CloudPayments
+
+### 3. Виджет не загружается
+
+Проверьте:
+- Доступность `https://widget.cloudpayments.ru`
+- Настройки CSP
+- Консоль браузера на ошибки
+
+## Ссылки
+
+- [Документация CloudPayments](https://cloudpayments.ru/Docs)
+- [Виджет CloudPayments](https://cloudpayments.ru/Docs/Widget)
+- [Рекуррентные платежи](https://cloudpayments.ru/Docs/Recurrent) 

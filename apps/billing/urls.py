@@ -14,8 +14,10 @@ app_name = 'billing'
 urlpatterns = [
     path('api/', include(router.urls)),
     # URLs для покупки тарифов
+    path('', views.billing_page, name='billing_page'),
     path('confirm/', views.confirm_plan, name='confirm_plan'),
     path('activate-free/', views.activate_free_plan, name='activate_free_plan'),
+    path('activate-payment/', views.activate_payment, name='activate_payment'),
     path('history/', views.plan_history, name='plan_history'),
     path('check-auth/', views.check_auth_status, name='check_auth_status'),
 ] 

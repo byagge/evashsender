@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Управление тарифами — vashsender</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <style>
+        body { font-family: 'Inter', sans-serif; background: #f6f9fc; }
+        .green-btn { background: #00b86b; }
+        .green-btn:hover { background: #009e5c; }
+        .blue-btn { background: #3b82f6; }
+        .blue-btn:hover { background: #2563eb; }
+        
+        .loading-spinner {
+            width: 40px;
+            height: 40px;
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #3b82f6;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+<div class="min-h-screen bg-gray-50">
+    <!-- Header -->
+    <div class="bg-white shadow-sm border-b">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between items-center py-6">
+                <div class="flex items-center">
+                    <a href="/dashboard/" class="mr-4 text-gray-400 hover:text-blue-600 transition">
+                        <i data-lucide="arrow-left" class="w-6 h-6"></i>
+                    </a>
+                    <div class="flex items-center">
+                        <div class="bg-blue-100 rounded-full p-2 mr-3">
+                            <i data-lucide="credit-card" class="w-7 h-7 text-blue-600"></i>
+                        </div>
+                        <span class="text-2xl font-bold text-gray-900">Управление тарифами</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Content -->
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <div x-data="billingApp()" x-init="loadBillingInfo()">
+            <!-- Current Plan -->
+            <div class="bg-white rounded-lg shadow-sm border p-6 mb-8">
+                <h2 class="text-xl font-semibold text-gray-900 mb-4">Текущий тариф</h2>
+                <div x-show="loading" class="text-center py-8">
+                    <div class="loading-spinner mx-auto"></div>
+                    <p class="text-gray-500 mt-2">Загрузка информации о тарифе...</p>
+                </div>
+                <div x-show="!loading && currentPlan" class="space-y-4">
+                    <div class="flex items-center justify-between p-4 bg-blue-50 rounded-lg">
+                        <div>
+                            <h3 class="text-lg font-semibold text-gray-900" x-text="currentPlan?.title || 'Неизвестный тариф'"></h3>
+                            <p class="text-gray-600" x-text="currentPlan?.description || 'Описание недоступно'"></p>
+                        </div>
+                        <div class="text-right">
+                            <div class="text-2xl font-bold text-blue-600" x-show="currentPlan?.price > 0" x-text="'₽' + (currentPlan?.price || 0)"></div>
+                            <div class="text-2xl font-bold text-green-600" x-show="!currentPlan?.price || currentPlan?.price === 0">Бесплатно</div>
+                            <div class="text-sm text-gray-500">в месяц</div>
+                        </div>
+                    </div>
+                    
+                    <!-- Plan Details -->
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div class="bg-gray-50 p-4 rounded-lg">
+                            <div class="text-sm text-gray-500">Статус</div>
+                            <div class="text-lg font-semibold" x-text="currentPlan?.is_active ? 'Активен' : 'Неактивен'"></div>
+                        </div>
+                        <div class="bg-gray-50 p-4 rounded-lg">
+                            <div class="text-sm text-gray-500">Действует до</div>
+                            <div class="text-lg font-semibold" x-text="formatDate(currentPlan?.end_date)"></div>
+                        </div>
+                        <div class="bg-gray-50 p-4 rounded-lg">
+                            <div class="text-sm text-gray-500">Осталось дней</div>
+                            <div class="text-lg font-semibold" x-text="currentPlan?.days_remaining || 0"></div>
+                        </div>
+                    </div>
+                    
+                    <!-- Email Limits (for Letters plans) -->
+                    <div x-show="currentPlan?.plan_type === 'Letters'" class="bg-gray-50 p-4 rounded-lg">
+                        <div class="text-sm text-gray-500 mb-2">Лимит писем</div>
+                        <div class="flex items-center justify-between">
+                            <span class="text-lg font-semibold">
+                                <span x-text="currentPlan?.emails_sent || 0"></span> / <span x-text="currentPlan?.emails_per_month || 0"></span>
+                            </span>
+                            <div class="w-32 bg-gray-200 rounded-full h-2">
+                                <div class="bg-blue-600 h-2 rounded-full" 
+                                     :style="`width: ${((currentPlan?.emails_sent || 0) / (currentPlan?.emails_per_month || 1) * 100)}%`"></div>
+                            </div>
+                        </div>
+                        <div class="text-sm text-gray-500 mt-1">
+                            Осталось: <span x-text="currentPlan?.emails_remaining || 0"></span> писем
+                        </div>
+                    </div>
+                    
+                    <!-- Subscribers Info (for Subscribers plans) -->
+                    <div x-show="currentPlan?.plan_type === 'Subscribers'" class="bg-gray-50 p-4 rounded-lg">
+                        <div class="text-sm text-gray-500 mb-2">Информация о тарифе</div>
+                        <div class="space-y-2">
+                            <div class="flex justify-between">
+                                <span class="text-gray-600">Тип тарифа:</span>
+                                <span class="font-semibold">Подписчики</span>
+                            </div>
+                            <div class="flex justify-between">
+                                <span class="text-gray-600">Отправлено писем:</span>
+                                <span class="font-semibold" x-text="currentPlan?.emails_sent || 0"></span>
+                            </div>
+                            <div class="flex justify-between">
+                                <span class="text-gray-600">Отправлено сегодня:</span>
+                                <span class="font-semibold" x-text="currentPlan?.emails_sent_today || 0"></span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div x-show="!loading && !currentPlan" class="text-center py-8">
+                    <i data-lucide="alert-circle" class="w-12 h-12 text-gray-400 mx-auto mb-4"></i>
+                    <p class="text-gray-500">У вас нет активного тарифа</p>
+                    <a href="/pricing/" class="inline-block mt-4 blue-btn text-white px-6 py-2 rounded-lg">
+                        Выбрать тариф
+                    </a>
+                </div>
+            </div>
+
+            <!-- Plan History -->
+            <div class="bg-white rounded-lg shadow-sm border p-6 mb-8">
+                <h2 class="text-xl font-semibold text-gray-900 mb-4">История тарифов</h2>
+                <div x-show="loading" class="text-center py-8">
+                    <div class="loading-spinner mx-auto"></div>
+                    <p class="text-gray-500 mt-2">Загрузка истории...</p>
+                </div>
+                <div x-show="!loading && planHistory.length > 0" class="space-y-4">
+                    <template x-for="plan in planHistory" :key="plan.id">
+                        <div class="border rounded-lg p-4">
+                            <div class="flex items-center justify-between">
+                                <div>
+                                    <h3 class="font-semibold text-gray-900" x-text="plan?.title || 'Неизвестный тариф'"></h3>
+                                    <p class="text-sm text-gray-500">
+                                        <span x-text="formatDate(plan?.start_date)"></span> - 
+                                        <span x-text="formatDate(plan?.end_date)"></span>
+                                    </p>
+                                    <p class="text-sm text-gray-500">
+                                        Стоимость: <span x-text="'₽' + (plan?.amount_paid || 0)"></span>
+                                    </p>
+                                </div>
+                                <div class="text-right">
+                                    <span class="px-2 py-1 text-xs rounded-full" 
+                                          :class="plan?.is_active ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'"
+                                          x-text="plan?.is_active ? 'Активен' : 'Завершен'"></span>
+                                </div>
+                            </div>
+                        </div>
+                    </template>
+                </div>
+                <div x-show="!loading && planHistory.length === 0" class="text-center py-8">
+                    <i data-lucide="history" class="w-12 h-12 text-gray-400 mx-auto mb-4"></i>
+                    <p class="text-gray-500">История тарифов пуста</p>
+                </div>
+            </div>
+
+            <!-- Actions -->
+            <div class="bg-white rounded-lg shadow-sm border p-6">
+                <h2 class="text-xl font-semibold text-gray-900 mb-4">Действия</h2>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <a href="/pricing/" class="blue-btn text-white px-6 py-3 rounded-lg text-center">
+                        <i data-lucide="plus" class="w-5 h-5 inline mr-2"></i>
+                        Изменить тариф
+                    </a>
+                    <button @click="cancelSubscription()" 
+                            x-show="currentPlan && currentPlan.auto_renew"
+                            class="bg-red-600 hover:bg-red-700 text-white px-6 py-3 rounded-lg">
+                        <i data-lucide="x" class="w-5 h-5 inline mr-2"></i>
+                        Отменить автопродление
+                    </button>
+                    <button @click="renewSubscription()" 
+                            x-show="currentPlan && !currentPlan.auto_renew && currentPlan.days_remaining <= 7"
+                            class="bg-green-600 hover:bg-green-700 text-white px-6 py-3 rounded-lg">
+                        <i data-lucide="refresh-cw" class="w-5 h-5 inline mr-2"></i>
+                        Продлить тариф
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+  lucide.createIcons();
+  
+  function billingApp() {
+    return {
+      loading: true,
+      currentPlan: null,
+      planHistory: [],
+      
+      async loadBillingInfo() {
+        try {
+          this.loading = true;
+          
+          // Загружаем текущий план
+          const currentResponse = await fetch('/billing/api/user-plan-info/');
+          if (!currentResponse.ok) {
+            throw new Error(`HTTP error! status: ${currentResponse.status}`);
+          }
+          const currentData = await currentResponse.json();
+          
+          if (currentData.success) {
+            this.currentPlan = currentData.planInfo;
+          } else {
+            // Если success = false, но данные есть, используем их
+            if (currentData.has_plan) {
+              this.currentPlan = {
+                title: currentData.plan_name,
+                description: `Тариф типа: ${currentData.plan_type}`,
+                price: 0, // Цена не возвращается в этом API
+                is_active: !currentData.is_expired,
+                end_date: currentData.end_date,
+                days_remaining: currentData.days_remaining,
+                plan_type: currentData.plan_type,
+                emails_sent: currentData.emails_sent,
+                emails_per_month: currentData.emails_limit,
+                emails_remaining: currentData.emails_remaining,
+                emails_sent_today: currentData.emails_sent_today
+              };
+            } else {
+              console.warn('Failed to load current plan:', currentData);
+              this.currentPlan = null;
+            }
+          }
+          
+          // Загружаем историю тарифов
+          const historyResponse = await fetch('/billing/api/purchased-plans/');
+          if (!historyResponse.ok) {
+            throw new Error(`HTTP error! status: ${historyResponse.status}`);
+          }
+          const historyData = await historyResponse.json();
+          
+          this.planHistory = historyData.results || historyData || [];
+          
+        } catch (error) {
+          console.error('Error loading billing info:', error);
+          this.currentPlan = null;
+          this.planHistory = [];
+        } finally {
+          this.loading = false;
+        }
+      },
+      
+      formatDate(dateString) {
+        if (!dateString) return 'Не указано';
+        try {
+          const date = new Date(dateString);
+          if (isNaN(date.getTime())) return 'Неверная дата';
+          return date.toLocaleDateString('ru-RU');
+        } catch (error) {
+          return 'Ошибка даты';
+        }
+      },
+      
+              async cancelSubscription() {
+          if (!confirm('Вы уверены, что хотите отменить автопродление тарифа?')) {
+            return;
+          }
+          
+          try {
+            const response = await fetch('/billing/cancel-subscription/', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': $('[name=csrfmiddlewaretoken]').val()
+              }
+            });
+            
+            const result = await response.json();
+            
+            if (result.success) {
+              alert('Автопродление отменено');
+              this.loadBillingInfo(); // Перезагружаем данные
+            } else {
+              alert('Ошибка: ' + result.error);
+            }
+          } catch (error) {
+            console.error('Error canceling subscription:', error);
+            alert('Произошла ошибка при отмене автопродления');
+          }
+        },
+        
+        async renewSubscription() {
+          if (!confirm('Вы хотите продлить тариф? Вы будете перенаправлены на страницу оплаты.')) {
+            return;
+          }
+          
+          // Перенаправляем на страницу с тарифами
+          window.location.href = '/pricing/';
+        }
+    }
+  }
+</script>
+</body>
+</html> 

@@ -58,7 +58,6 @@ INSTALLED_APPS = [
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
-    "django.contrib.sites",
 ]
 
 MIDDLEWARE = [
@@ -234,10 +233,6 @@ EMAIL_HOST_PASSWORD = ''
 DEFAULT_FROM_EMAIL = 'noreply@vashsender.ru'
 SERVER_EMAIL = DEFAULT_FROM_EMAIL  # от этого адреса Django шлёт системные письма
 
-# Дополнительные настройки для улучшения доставляемости
-EMAIL_TIMEOUT = 30  # Timeout для отправки письма
-EMAIL_USE_LOCALTIME = True  # Использовать локальное время в заголовках
-
 # Celery Configuration
 CELERY_BROKER_URL = 'redis://localhost:6379/0'
 CELERY_RESULT_BACKEND = 'redis://localhost:6379/0'
@@ -267,6 +262,3 @@ DKIM_KEYS_DIR = '/etc/opendkim/keys'  # Директория для хранен
 
 # Password Reset settings
 PASSWORD_RESET_TIMEOUT = 86400  # 24 часа в секундах
-
-# Django Sites framework
-SITE_ID = 1

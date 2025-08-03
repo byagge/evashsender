@@ -3,6 +3,7 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from django.utils import timezone
 from django.db.models import Q
+from django.db import transaction
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
@@ -10,6 +11,7 @@ from django.http import JsonResponse
 from django.views.decorators.http import require_http_methods
 from django.views.decorators.csrf import csrf_exempt
 from datetime import timedelta
+import json
 from .models import PlanType, Plan, PurchasedPlan, BillingSettings, CloudPaymentsTransaction
 from .serializers import (
     PlanTypeSerializer, PlanSerializer, PurchasedPlanSerializer,
@@ -368,6 +370,12 @@ def plan_history(request):
     })
 
 
+@login_required
+def billing_page(request):
+    """Страница управления тарифами"""
+    return render(request, 'billing/billing.html')
+
+
 @csrf_exempt
 def check_auth_status(request):
     """Проверка статуса авторизации для AJAX запросов"""
@@ -381,3 +389,81 @@ def check_auth_status(request):
         })
     else:
         return JsonResponse({'authenticated': False})
+
+
+@login_required
+@require_http_methods(["POST"])
+def activate_payment(request):
+    """Активация тарифа после успешной оплаты через CloudPayments"""
+    try:
+        print(f"DEBUG: activate_payment called with user {request.user.email}")
+        data = json.loads(request.body)
+        print(f"DEBUG: Received data: {data}")
+        plan_id = data.get('plan_id')
+        payment_data = data.get('payment_data', {})
+        print(f"DEBUG: Plan ID: {plan_id}, Payment data: {payment_data}")
+        
+        if not plan_id:
+            return JsonResponse({
+                'success': False,
+                'error': 'Plan ID is required'
+            }, status=400)
+        
+        # Получаем план
+        plan = get_object_or_404(Plan, id=plan_id, is_active=True)
+        user = request.user
+        print(f"DEBUG: Found plan: {plan.title}, User: {user.email}")
+        
+        # Создаем запись о купленном тарифе
+        print(f"DEBUG: Creating PurchasedPlan...")
+        try:
+            with transaction.atomic():
+                print(f"DEBUG: About to create PurchasedPlan with data:")
+                print(f"  - user: {user.id}")
+                print(f"  - plan: {plan.id}")
+                print(f"  - amount_paid: {plan.get_final_price()}")
+                print(f"  - transaction_id: {payment_data.get('invoiceId', f'cp_{timezone.now().strftime("%Y%m%d_%H%M%S")}')}")
+                
+                purchased_plan = PurchasedPlan.objects.create(
+                    user=user,
+                    plan=plan,
+                    start_date=timezone.now(),
+                    end_date=timezone.now() + timedelta(days=30),
+                    is_active=True,
+                    amount_paid=plan.get_final_price(),
+                    payment_method='cloudpayments',
+                    transaction_id=payment_data.get('invoiceId', f'cp_{timezone.now().strftime("%Y%m%d_%H%M%S")}'),
+                    cloudpayments_data=payment_data  # Сохраняем данные от CloudPayments
+                )
+                print(f"DEBUG: PurchasedPlan created successfully!")
+        except Exception as e:
+            print(f"DEBUG: Error creating PurchasedPlan: {e}")
+            print(f"DEBUG: Error type: {type(e)}")
+            import traceback
+            traceback.print_exc()
+            raise
+            
+            # Обновляем текущий план пользователя
+            user.current_plan = plan
+            user.plan_expiry = purchased_plan.end_date
+            user.save()
+            
+            print(f"DEBUG: PurchasedPlan created with ID: {purchased_plan.id}")
+            print(f"DEBUG: User plan updated: {user.current_plan.title}")
+        
+        return JsonResponse({
+            'success': True,
+            'message': f'Тариф "{plan.title}" успешно активирован!',
+            'purchased_plan_id': purchased_plan.id
+        })
+        
+    except json.JSONDecodeError:
+        return JsonResponse({
+            'success': False,
+            'error': 'Invalid JSON data'
+        }, status=400)
+    except Exception as e:
+        return JsonResponse({
+            'success': False,
+            'error': str(e)
+        }, status=500)

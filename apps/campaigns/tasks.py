@@ -41,20 +41,8 @@ class SMTPConnectionPool:
                 timeout=settings.EMAIL_CONNECTION_TIMEOUT
             )
             
-            # Устанавливаем правильный HELO для улучшения доставляемости
-            try:
-                connection.helo('mail.vashsender.ru')
-            except:
-                # Если не удалось, используем стандартный HELO
-                pass
-            
             if settings.EMAIL_USE_TLS:
                 connection.starttls()
-                # Повторяем HELO после STARTTLS
-                try:
-                    connection.helo('mail.vashsender.ru')
-                except:
-                    pass
             
             if settings.EMAIL_HOST_USER and settings.EMAIL_HOST_PASSWORD:
                 connection.login(settings.EMAIL_HOST_USER, settings.EMAIL_HOST_PASSWORD)
@@ -162,33 +150,6 @@ def send_campaign(self, campaign_id: str, skip_moderation: bool = False) -> Dict
                 'status': 'pending_moderation',
                 'message': 'Кампания отправлена на модерацию'
             }
-        
-        # Проверяем лимиты тарифа перед отправкой
-        try:
-            from apps.billing.utils import can_user_send_emails, get_user_plan_info
-            plan_info = get_user_plan_info(user)
-            
-            if plan_info['has_plan'] and plan_info['plan_type'] == 'Letters':
-                # Для тарифов с письмами проверяем остаток
-                if not can_user_send_emails(user, total_contacts):
-                    campaign.status = Campaign.STATUS_FAILED
-                    campaign.celery_task_id = None
-                    campaign.save(update_fields=['status', 'celery_task_id'])
-                    return {
-                        'error': f'Недостаточно писем в тарифе. Доступно: {plan_info["emails_remaining"]}, требуется: {total_contacts}'
-                    }
-            elif plan_info['has_plan'] and plan_info['plan_type'] == 'Subscribers':
-                # Для тарифов с подписчиками проверяем только срок действия
-                if plan_info['is_expired']:
-                    campaign.status = Campaign.STATUS_FAILED
-                    campaign.celery_task_id = None
-                    campaign.save(update_fields=['status', 'celery_task_id'])
-                    return {
-                        'error': 'Тариф истёк. Пожалуйста, продлите тариф для отправки кампаний.'
-                    }
-        except Exception as e:
-            print(f"Error checking plan limits: {e}")
-            # Продолжаем отправку, если не удалось проверить лимиты
         
         # Обновляем статус кампании на отправляется
         campaign.status = Campaign.STATUS_SENDING
@@ -611,138 +572,37 @@ def send_single_email(self, campaign_id: str, contact_id: int) -> Dict[str, Any]
         if campaign.content:
             html_content = html_content.replace('{{content}}', campaign.content)
         
-        # Добавляем tracking pixel с полным URL
-        # Используем домен из настроек или текущий домен
-        try:
-            from django.contrib.sites.models import Site
-            current_site = Site.objects.get_current()
-            base_url = f"https://{current_site.domain}"
-        except:
-            # Fallback на домен из настроек
-            base_url = f"https://{settings.ALLOWED_HOSTS[0]}" if settings.ALLOWED_HOSTS else "https://vashsender.ru"
-        
-        tracking_pixel = f'<img src="{base_url}/campaigns/{campaign.id}/track-open/?tracking_id={tracking.tracking_id}" width="1" height="1" alt="" />'
+        # Добавляем tracking pixel
+        tracking_pixel = f'<img src="/campaigns/{campaign.id}/track-open/?tracking_id={tracking.tracking_id}" width="1" height="1" />'
         if '</body>' in html_content:
             html_content = html_content.replace('</body>', f'{tracking_pixel}</body>')
         else:
             html_content += tracking_pixel
         
-        # Создаем улучшенную plain text версию с большим количеством текста
+        # Создаем plain text версию
         import re
-        from bs4 import BeautifulSoup
+        plain_text = re.sub(r'<[^>]+>', '', html_content)
+        plain_text = re.sub(r'\s+', ' ', plain_text).strip()
         
-        # Сначала извлекаем текст из HTML
-        soup = BeautifulSoup(html_content, 'html.parser')
-        
-        # Удаляем скрипты и стили
-        for script in soup(["script", "style"]):
-            script.decompose()
-        
-        # Получаем текст
-        plain_text = soup.get_text()
-        
-        # Очищаем текст
-        lines = (line.strip() for line in plain_text.splitlines())
-        chunks = (phrase.strip() for line in lines for phrase in line.split("  "))
-        plain_text = ' '.join(chunk for chunk in chunks if chunk)
-        
-        # Если текст слишком короткий, добавляем дополнительную информацию
-        if len(plain_text) < 200:
-            plain_text += f"\n\nЭто письмо отправлено через систему рассылок VashSender.\n"
-            plain_text += f"Если вы не хотите получать наши письма, вы можете отписаться от рассылки.\n"
-            plain_text += f"С уважением, команда VashSender"
-        
-        # Добавляем дополнительный текст для решения проблемы HTML_IMAGE_ONLY_24
-        if len(plain_text) < 500:
-            plain_text += f"\n\nДополнительная информация:\n"
-            plain_text += f"Данное письмо содержит важную информацию для вас. "
-            plain_text += f"Пожалуйста, внимательно ознакомьтесь с содержимым. "
-            plain_text += f"Если у вас есть вопросы, не стесняйтесь обращаться к нам. "
-            plain_text += f"Мы всегда готовы помочь и ответить на ваши вопросы. "
-            plain_text += f"Спасибо за ваше внимание к нашему сообщению."
-        
-        # Ограничиваем длину текста
-        if len(plain_text) > 1000:
-            plain_text = plain_text[:1000] + "..."
-        
-        # Подготавливаем отправителя - используем имя из кампании
+        # Подготавливаем отправителя
         sender_name = campaign.sender_name
-        if not sender_name or sender_name.strip() == '':
-            # Если имя не задано в кампании, используем имя из email
-            sender_name = campaign.sender_email.sender_name
-            if not sender_name or sender_name.strip() == '':
-                # Если и там нет, используем домен
-                if '@' in campaign.sender_email.email:
-                    domain = campaign.sender_email.email.split('@')[1]
-                    sender_name = domain.split('.')[0].title()
-                else:
-                    sender_name = "Sender"
-        
-        # Очищаем имя от лишних символов и проблемных символов
-        sender_name = sender_name.strip()
-        
-        # Убираем проблемные символы для email заголовков
-        import re
-        sender_name = re.sub(r'[^\w\s\-\.]', '', sender_name)  # Оставляем только буквы, цифры, пробелы, дефисы и точки
-        sender_name = re.sub(r'\s+', ' ', sender_name)  # Убираем множественные пробелы
-        
         if not sender_name:
-            sender_name = "Sender"
-        
-        # Подготавливаем email отправителя
-        from_email = campaign.sender_email.email
-        
-        # Убираем все возможные варианты двойного @ для любых доменов
-        if from_email.count('@') > 1:
-            # Если больше одного @, берем только первую часть до первого @
-            parts = from_email.split('@')
-            username = parts[0]
-            domain = parts[1]  # Берем первый домен после @
-            from_email = f"{username}@{domain}"
-        
-        # Дополнительная проверка на корректность email
-        if not '@' in from_email:
-            # Если email некорректный, используем домен из настроек
-            from_email = settings.DEFAULT_FROM_EMAIL
-        
-        # Логируем для отладки
-        print(f"Sender name: '{sender_name}'")
-        print(f"From email: '{from_email}'")
+            sender_name = campaign.sender_email.sender_name
+            if not sender_name:
+                email_parts = campaign.sender_email.email.split('@')
+                if len(email_parts) > 0:
+                    email_name = email_parts[0]
+                    sender_name = email_name.replace('.', ' ').replace('_', ' ').title()
         
         # Получаем SMTP соединение
         smtp_connection = smtp_pool.get_connection()
         
-        # Создаем сообщение с улучшенными заголовками
+        # Создаем сообщение
         msg = MIMEMultipart('alternative')
         msg['Subject'] = campaign.subject
-        
-        # Правильно формируем заголовок From с кодировкой имени
-        from email.header import Header
-        from email.utils import formataddr
-        
-        try:
-            # Кодируем имя отправителя в UTF-8
-            from_name = Header(sender_name, 'utf-8')
-            
-            # Используем formataddr для правильного форматирования
-            msg['From'] = formataddr((str(from_name), from_email))
-        except Exception as e:
-            # Если кодировка не удалась, используем простое имя без кодировки
-            print(f"Error encoding sender name '{sender_name}': {e}")
-            msg['From'] = formataddr((sender_name, from_email))
+        msg['From'] = f"{sender_name} <{campaign.sender_email.email}>"
         msg['To'] = contact.email
-        msg['Reply-To'] = campaign.sender_email.reply_to or from_email
-        
-        # Добавляем важные заголовки для улучшения доставляемости
-        # Используем домен из email отправителя для Message-ID
-        message_domain = from_email.split('@')[1] if '@' in from_email else 'vashsender.ru'
-        msg['Message-ID'] = f"<{tracking.tracking_id}@{message_domain}>"
-        msg['Date'] = timezone.now().strftime('%a, %d %b %Y %H:%M:%S %z')
-        msg['MIME-Version'] = '1.0'
-        msg['X-Mailer'] = 'VashSender/1.0'
-        msg['X-Priority'] = '3'  # Нормальный приоритет
-        msg['X-MSMail-Priority'] = 'Normal'
-        msg['Importance'] = 'normal'
+        msg['Reply-To'] = campaign.sender_email.reply_to or campaign.sender_email.email
         
         # Добавляем части сообщения
         text_part = MIMEText(plain_text, 'plain', 'utf-8')
@@ -774,14 +634,6 @@ def send_single_email(self, campaign_id: str, contact_id: int) -> Dict[str, Any]
                 recipient.save(update_fields=['is_sent', 'sent_at'])
         
         print(f"Created CampaignRecipient: campaign_id={campaign_id}, contact_id={contact_id}, is_sent=True")
-        
-        # Обновляем счётчик отправленных писем в тарифе
-        try:
-            from apps.billing.utils import add_emails_sent_to_plan
-            add_emails_sent_to_plan(campaign.user, 1)
-            print(f"Updated email count for user {campaign.user.email}")
-        except Exception as e:
-            print(f"Error updating email count: {e}")
         
         # Возвращаем соединение в пул
         smtp_pool.return_connection(smtp_connection)

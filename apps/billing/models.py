@@ -61,6 +61,7 @@ class PurchasedPlan(models.Model):
     transaction_id = models.CharField(max_length=100, blank=True, help_text=_("ID транзакции"))
     amount_paid = models.DecimalField(max_digits=8, decimal_places=2, null=True, blank=True)
     emails_sent = models.PositiveIntegerField(default=0, help_text=_("Количество отправленных писем"))
+    cloudpayments_data = models.JSONField(null=True, blank=True, help_text=_("Данные от CloudPayments"))
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

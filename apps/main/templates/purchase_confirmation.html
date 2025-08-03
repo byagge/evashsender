@@ -7,6 +7,8 @@
     <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="https://widget.cloudpayments.ru/bundles/cloudpayments.js"></script>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <style>
         body { font-family: 'Inter', sans-serif; background: #f6f9fc; }
         .divider { border-bottom: 1px solid #e3e8ee; }
@@ -84,7 +86,11 @@
   </div>
   <!-- Правая часть: Оформление -->
   <div class="md:w-1/2 w-full flex flex-col justify-between bg-white px-0 md:px-8 py-8 md:py-16">
-    <form x-data="purchaseApp()" @submit.prevent="processPurchase()" class="flex flex-col h-full">
+    <form x-data="purchaseApp()" @submit.prevent="processPurchase()" class="flex flex-col h-full" 
+          data-plan-id="{{ plan.id|default:0 }}" 
+          data-plan-title="{{ plan.title|escapejs }}" 
+          data-plan-price="{{ plan.price|default:0 }}" 
+          data-user-email="{{ request.user.email|escapejs }}">
       <div>
         <div class="mb-8">
           <div class="text-gray-900 font-semibold mb-1">Контактные данные</div>
@@ -111,7 +117,7 @@
         </div>
       </div>
       <div class="mt-auto">
-        <button type="submit" :disabled="!agreedToTerms || isProcessing"
+        <button type="submit" :disabled="!agreedToTerms || isProcessing" @click="console.log('Button clicked')"
                 class="w-full green-btn text-white font-bold py-3 px-6 rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed text-lg mb-3">
           <span x-show="!isProcessing">
             <i data-lucide="credit-card" class="w-5 h-5 inline mr-2"></i>
@@ -129,26 +135,153 @@
   </div>
 </div>
 <script>
+  console.log('Script loaded');
+  console.log('Alpine available:', typeof Alpine !== 'undefined');
+  console.log('CloudPayments available:', typeof cp !== 'undefined');
+  console.log('jQuery available:', typeof $ !== 'undefined');
   lucide.createIcons();
-  function purchaseApp() {
+  
+  // Глобальная функция для Alpine.js
+  console.log('Defining purchaseApp function...');
+  window.purchaseApp = function() {
+    console.log('purchaseApp function called');
     return {
       agreedToTerms: false,
       isProcessing: false,
-      async processPurchase() {
+      
+      init() {
+        console.log('Alpine init called');
+        // Получаем данные из data-атрибутов формы
+        var form = this.$el;
+        console.log('Form element:', form);
+        console.log('Form dataset:', form.dataset);
+        this.planData = {
+          id: parseInt(form.dataset.planId) || 0,
+          title: form.dataset.planTitle || 'Тариф',
+          price: parseFloat(form.dataset.planPrice) || 0,
+          userEmail: form.dataset.userEmail || 'user@example.com'
+        };
+        console.log('Plan data loaded:', this.planData);
+      },
+      
+      processPurchase() {
+        console.log('processPurchase called');
+        console.log('agreedToTerms:', this.agreedToTerms);
         if (!this.agreedToTerms) {
           alert('Пожалуйста, согласитесь с условиями использования');
           return;
         }
+        
         this.isProcessing = true;
+        
         try {
-          await new Promise(resolve => setTimeout(resolve, 2000));
-          const transactionId = 'TXN-' + Date.now();
-          window.location.href = `/purchase/success/?plan_id={{ plan.id|default:"" }}&transaction_id=${transactionId}`;
+          // Создаем виджет CloudPayments с отключенными дополнительными методами оплаты
+          var payments = new cp.CloudPayments({
+            yandexPaySupport: false,
+            applePaySupport: false,
+            googlePaySupport: false,
+            masterPassSupport: false,
+            tinkoffInstallmentSupport: false
+          });
+          
+          // Обработчик завершения оплаты
+          payments.oncomplete = (result) => {
+            console.log('Payment completed:', result);
+          };
+          
+          // Формируем чек для фискализации
+          var receipt = {
+            Items: [{
+              label: this.planData.title,
+              price: this.planData.price,
+              quantity: 1.00,
+              amount: this.planData.price,
+              vat: 20,
+              method: 0,
+              object: 0
+            }],
+            taxationSystem: 0,
+            email: this.planData.userEmail,
+            phone: '',
+            isBso: false,
+            amounts: {
+              electronic: this.planData.price,
+              advancePayment: 0.00,
+              credit: 0.00,
+              provision: 0.00
+            }
+          };
+
+          // Данные для рекуррентных платежей
+          var data = {
+            CloudPayments: {
+              CustomerReceipt: receipt,
+              recurrent: {
+                interval: 'Month',
+                period: 1,
+                customerReceipt: receipt
+              }
+            }
+          };
+
+          var self = this;
+          
+          // Запускаем оплату с Promise
+          payments.pay("charge", {
+            publicId: 'test_api_00000000000000000000002',
+            accountId: this.planData.userEmail,
+            description: 'Подписка на тариф ' + this.planData.title + ' - vashsender',
+            amount: this.planData.price,
+            currency: 'RUB',
+            invoiceId: 'PLAN-' + this.planData.id + '-' + Date.now(),
+            data: data
+          }).then((result) => {
+            // Успешная оплата
+            console.log('Payment successful:', result);
+            // Структура result: {type: 'payment', data: {...}, status: 'success'}
+            self.activatePlan(result.data || result);
+          }).catch((error) => {
+            // Ошибка оплаты
+            console.error('Payment failed:', error);
+            alert('Оплата не прошла: ' + (error.message || 'Неизвестная ошибка'));
+            self.isProcessing = false;
+          });
+          
         } catch (error) {
+          console.error('Error processing purchase:', error);
           alert('Произошла ошибка при обработке покупки. Попробуйте еще раз.');
-        } finally {
           this.isProcessing = false;
         }
+      },
+      
+      activatePlan(paymentResult) {
+        var self = this;
+        
+        $.ajax({
+          url: '/billing/activate-payment/',
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': $('[name=csrfmiddlewaretoken]').val()
+          },
+          data: JSON.stringify({
+            plan_id: this.planData.id,
+            payment_data: paymentResult
+          }),
+          success: function(result) {
+            if (result.success) {
+              window.location.href = '/purchase/success/?plan_id=' + self.planData.id + '&transaction_id=' + paymentResult.invoiceId;
+            } else {
+              alert('Ошибка активации тарифа: ' + result.error);
+              self.isProcessing = false;
+            }
+          },
+          error: function(xhr, status, error) {
+            console.error('Error activating plan:', error);
+            alert('Ошибка активации тарифа. Обратитесь в поддержку.');
+            self.isProcessing = false;
+          }
+        });
       }
     }
   }

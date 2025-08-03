@@ -20,6 +20,7 @@ django-taggit==6.1.0
 django-tasks==0.7.0
 django-treebeard==4.7.1
 djangorestframework==3.16.0
+dkimpy==1.1.0
 dnspython==2.7.0
 draftjs_exporter==5.1.0
 et_xmlfile==2.0.0
