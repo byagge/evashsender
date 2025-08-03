@@ -5,6 +5,8 @@ from django.db import models
 from django.utils import timezone
 from bs4 import BeautifulSoup
 import re
+import os
+import uuid
 
 class EmailTemplate(models.Model):
     """
@@ -87,3 +89,85 @@ class EmailTemplate(models.Model):
             link['href'] = tracked_url
 
         return str(soup)
+
+
+def template_image_upload_path(instance, filename):
+    """Генерирует путь для загрузки изображений шаблонов"""
+    # Получаем расширение файла
+    ext = filename.split('.')[-1]
+    # Создаем уникальное имя файла
+    unique_filename = f"{uuid.uuid4()}.{ext}"
+    # Возвращаем путь: media/template_images/user_id/unique_filename
+    return os.path.join('template_images', str(instance.owner.id), unique_filename)
+
+
+class TemplateImage(models.Model):
+    """
+    Изображения для шаблонов писем:
+      - id          — автоматически PK
+      - owner       — владелец изображения (пользователь)
+      - image       — файл изображения
+      - filename    — оригинальное имя файла
+      - file_size   — размер файла в байтах
+      - width       — ширина изображения
+      - height      — высота изображения
+      - alt_text    — альтернативный текст
+      - created_at  — когда загружено
+    """
+    owner = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='template_images'
+    )
+    image = models.ImageField(
+        upload_to=template_image_upload_path,
+        help_text="Загруженное изображение"
+    )
+    filename = models.CharField(
+        max_length=255,
+        help_text="Оригинальное имя файла"
+    )
+    file_size = models.PositiveIntegerField(
+        help_text="Размер файла в байтах"
+    )
+    width = models.PositiveIntegerField(
+        null=True,
+        blank=True,
+        help_text="Ширина изображения в пикселях"
+    )
+    height = models.PositiveIntegerField(
+        null=True,
+        blank=True,
+        help_text="Высота изображения в пикселях"
+    )
+    alt_text = models.CharField(
+        max_length=255,
+        blank=True,
+        help_text="Альтернативный текст для изображения"
+    )
+    created_at = models.DateTimeField(
+        auto_now_add=True,
+        help_text="Когда изображение загружено"
+    )
+
+    class Meta:
+        ordering = ['-created_at']
+        verbose_name = "Изображение шаблона"
+        verbose_name_plural = "Изображения шаблонов"
+
+    def __str__(self):
+        return f"{self.filename} ({self.owner})"
+
+    def get_url(self):
+        """Возвращает URL изображения"""
+        return self.image.url
+
+    def get_file_size_mb(self):
+        """Возвращает размер файла в МБ"""
+        return round(self.file_size / (1024 * 1024), 2)
+
+    def get_dimensions(self):
+        """Возвращает размеры изображения в виде строки"""
+        if self.width and self.height:
+            return f"{self.width}×{self.height}"
+        return "Неизвестно"

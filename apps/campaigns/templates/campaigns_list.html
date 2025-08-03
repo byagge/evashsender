@@ -422,6 +422,22 @@
         init() {
           lucide.createIcons();
           this.loadCampaigns();
+          
+          // Автоматическое обновление данных каждые 5 секунд для кампаний в статусе "sending"
+          this.autoRefreshInterval = setInterval(() => {
+            const hasSendingCampaigns = this.campaigns.some(campaign => campaign.status === 'sending');
+            if (hasSendingCampaigns) {
+              console.log('Auto-refreshing campaigns data...');
+              this.loadCampaigns();
+            }
+          }, 5000);
+        },
+
+        // Очистка интервала при уничтожении компонента
+        destroy() {
+          if (this.autoRefreshInterval) {
+            clearInterval(this.autoRefreshInterval);
+          }
         },
 
         async loadCampaigns() {

@@ -10,11 +10,13 @@ from django.http import JsonResponse
 from django.views.decorators.http import require_http_methods
 from django.views.decorators.csrf import csrf_exempt
 from datetime import timedelta
-from .models import PlanType, Plan, PurchasedPlan, BillingSettings
+from .models import PlanType, Plan, PurchasedPlan, BillingSettings, CloudPaymentsTransaction
 from .serializers import (
     PlanTypeSerializer, PlanSerializer, PurchasedPlanSerializer,
     BillingSettingsSerializer, UserPlanInfoSerializer
+    # CloudPaymentsTransactionSerializer  # Временно отключено до применения миграций
 )
+# from .cloudpayments import cloudpayments_service  # Временно отключено до применения миграций
 
 
 class PlanTypeViewSet(viewsets.ReadOnlyModelViewSet):
@@ -101,10 +103,74 @@ class PurchasedPlanViewSet(viewsets.ModelViewSet):
     
     @action(detail=False, methods=['get'])
     def history(self, request):
-        """История покупок"""
-        history = self.get_queryset().order_by('-start_date')
-        serializer = self.get_serializer(history, many=True)
+        """Получить историю тарифов"""
+        plans = self.get_queryset().order_by('-start_date')
+        serializer = self.get_serializer(plans, many=True)
         return Response(serializer.data)
+
+
+# class CloudPaymentsViewSet(viewsets.ViewSet):
+#     """API для работы с CloudPayments"""
+#     permission_classes = [permissions.IsAuthenticated]
+#     
+#     @action(detail=False, methods=['post'])
+#     def create_payment(self, request):
+#         """Создать платеж"""
+#         plan_id = request.data.get('plan_id')
+#         amount = request.data.get('amount')
+#         description = request.data.get('description')
+#         
+#         try:
+#             plan = Plan.objects.get(id=plan_id, is_active=True)
+#         except Plan.DoesNotExist:
+#             return Response(
+#                 {'error': 'Тариф не найден'}, 
+#                 status=status.HTTP_404_NOT_FOUND
+#             )
+#         
+#         # Создаем платеж
+#         payment_data = cloudpayments_service.create_payment(
+#             user=request.user,
+#             plan=plan,
+#             amount=amount,
+#             description=description
+#         )
+#         
+#         return Response(payment_data)
+#     
+#     @action(detail=False, methods=['get'])
+#     def transaction_status(self, request):
+#         """Получить статус транзакции"""
+#         transaction_id = request.query_params.get('transaction_id')
+#         
+#         if not transaction_id:
+#             return Response(
+#                 {'error': 'ID транзакции не указан'}, 
+#                 status=status.HTTP_400_BAD_REQUEST
+#             )
+#         
+#         try:
+#             transaction = CloudPaymentsTransaction.objects.get(
+#                 id=transaction_id,
+#                 user=request.user
+#         )
+#             serializer = CloudPaymentsTransactionSerializer(transaction)
+#             return Response(serializer.data)
+#         except CloudPaymentsTransaction.DoesNotExist:
+#             return Response(
+#                 {'error': 'Транзакция не найдена'}, 
+#                 status=status.HTTP_404_NOT_FOUND
+#             )
+#     
+#     @action(detail=False, methods=['get'])
+#     def transactions(self, request):
+#         """Получить историю транзакций пользователя"""
+#         transactions = CloudPaymentsTransaction.objects.filter(
+#             user=request.user
+#         ).order_by('-created_at')
+#         
+#         serializer = CloudPaymentsTransactionSerializer(transactions, many=True)
+#         return Response(serializer.data)
 
 
 class BillingSettingsViewSet(viewsets.ReadOnlyModelViewSet):
@@ -125,40 +191,50 @@ class UserPlanInfoViewSet(viewsets.ViewSet):
         """Получить информацию о текущем плане пользователя"""
         user = request.user
         
-        # Получаем настройки биллинга
-        settings = BillingSettings.get_settings()
+        # Используем новую утилиту для получения информации о тарифе
+        from .utils import get_user_plan_info, update_plan_emails_sent
         
-        # Если у пользователя нет плана, используем бесплатный
-        if not user.current_plan:
-            # Создаем временный объект плана с бесплатными лимитами
-            from .models import Plan
-            free_plan = Plan(
-                title="Бесплатный",
-                subscribers=settings.free_plan_subscribers,
-                emails_per_month=settings.free_plan_emails,
-                max_emails_per_day=settings.free_plan_daily_limit,
-                price=0
-            )
-        else:
-            free_plan = user.current_plan
+        # Обновляем счётчик отправленных писем на основе фактических отправок
+        update_plan_emails_sent(user)
         
-        # Проверяем истечение плана
-        is_expired = user.plan_expiry and user.plan_expiry < timezone.now()
-        days_remaining = 0
-        if user.plan_expiry and not is_expired:
-            days_remaining = (user.plan_expiry - timezone.now()).days
+        # Получаем информацию о тарифе
+        plan_info = get_user_plan_info(user)
         
-        data = {
-            'current_plan': free_plan,
-            'plan_expiry': user.plan_expiry,
+        # Добавляем дополнительную информацию
+        plan_info.update({
             'emails_sent_today': user.emails_sent_today,
             'has_exceeded_daily_limit': user.has_exceeded_daily_limit(),
-            'days_remaining': days_remaining,
-            'is_plan_expired': is_expired
-        }
+        })
         
-        serializer = UserPlanInfoSerializer(data)
-        return Response(serializer.data)
+        return Response(plan_info)
+
+
+# Webhook для CloudPayments
+# @csrf_exempt
+# @require_http_methods(["POST"])
+# def cloudpayments_webhook(request):
+#     """Webhook для обработки уведомлений от CloudPayments"""
+#     try:
+#         # Получаем данные
+#         data = request.POST.dict()
+#         signature = request.headers.get('X-Signature', '')
+#         
+#         # Обрабатываем webhook
+#         result = cloudpayments_service.process_webhook(data, signature)
+#         
+#         if result.get('success'):
+#             return JsonResponse({'status': 'ok'})
+#         else:
+#             return JsonResponse(
+#                 {'status': 'error', 'message': result.get('error')}, 
+#                 status=400
+#             )
+#             
+#     except Exception as e:
+#         return JsonResponse(
+#             {'status': 'error', 'message': str(e)}, 
+#             status=500
+#         )
 
 
 # Views для покупки тарифов
@@ -186,7 +262,7 @@ def confirm_plan(request):
     if request.method == 'POST':
         return process_plan_purchase(request, plan)
     
-    return render(request, 'billing/confirm_plan.html', context)
+    return render(request, 'purchase_confirmation.html', context)
 
 
 @login_required
@@ -226,10 +302,17 @@ def process_plan_purchase(request, plan):
     """Обработка покупки платного тарифа"""
     user = request.user
     
-    # Здесь можно добавить интеграцию с платежной системой
-    # Пока делаем тестовую покупку
+    # Временно отключено до настройки CloudPayments
+    # payment_data = cloudpayments_service.create_payment(
+    #     user=user,
+    #     plan=plan
+    # )
+    # return redirect('billing:payment', transaction_id=payment_data['transaction_id'])
     
-    # Создаем запись о покупке
+    # Временное решение - создаем тестовую покупку
+    from django.utils import timezone
+    from datetime import timedelta
+    
     purchased_plan = PurchasedPlan.objects.create(
         user=user,
         plan=plan,
@@ -237,7 +320,7 @@ def process_plan_purchase(request, plan):
         end_date=timezone.now() + timedelta(days=30),
         is_active=True,
         amount_paid=plan.get_final_price(),
-        payment_method='test',  # В реальности здесь будет способ оплаты
+        payment_method='test',
         transaction_id=f'test_{timezone.now().strftime("%Y%m%d_%H%M%S")}'
     )
     
@@ -250,23 +333,51 @@ def process_plan_purchase(request, plan):
     return redirect('dashboard')
 
 
+# @login_required
+# def payment_page(request, transaction_id):
+#     """Страница оплаты"""
+#     try:
+#         transaction = CloudPaymentsTransaction.objects.get(
+#             id=transaction_id,
+#             user=request.user
+#         )
+#     except CloudPaymentsTransaction.DoesNotExist:
+#         messages.error(request, 'Транзакция не найдена')
+#         return redirect('dashboard')
+#     
+#     # Получаем настройки CloudPayments
+#     settings = BillingSettings.get_settings()
+#     
+#     context = {
+#         'transaction': transaction,
+#         'cloudpayments_public_id': settings.cloudpayments_public_id,
+#     }
+#     
+#     return render(request, 'billing/payment.html', context)
+
+
 @login_required
 def plan_history(request):
-    """История покупок тарифов"""
-    purchases = PurchasedPlan.objects.filter(user=request.user).order_by('-start_date')
-    return render(request, 'billing/plan_history.html', {'purchases': purchases})
+    """История тарифов пользователя"""
+    purchased_plans = PurchasedPlan.objects.filter(
+        user=request.user
+    ).order_by('-start_date')
+    
+    return render(request, 'billing/plan_history.html', {
+        'purchased_plans': purchased_plans
+    })
 
 
-# API для проверки авторизации
 @csrf_exempt
 def check_auth_status(request):
-    """API для проверки статуса авторизации"""
+    """Проверка статуса авторизации для AJAX запросов"""
     if request.user.is_authenticated:
         return JsonResponse({
-            'is_authenticated': True,
-            'user_email': request.user.email
+            'authenticated': True,
+            'user': {
+                'email': request.user.email,
+                'full_name': request.user.full_name
+            }
         })
     else:
-        return JsonResponse({
-            'is_authenticated': False
-        })
+        return JsonResponse({'authenticated': False})

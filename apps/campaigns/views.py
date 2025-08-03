@@ -17,6 +17,7 @@ from .models import Campaign, CampaignStats, EmailTracking, CampaignRecipient
 from .serializers import CampaignSerializer, EmailTrackingSerializer
 from apps.billing.models import Plan
 from apps.campaigns.tasks import send_campaign
+from django.conf import settings
 
 
 class CampaignViewSet(viewsets.ModelViewSet):
@@ -32,20 +33,42 @@ class CampaignViewSet(viewsets.ModelViewSet):
         return Campaign.objects.filter(user=self.request.user).order_by('-created_at')
 
     def list(self, request, *args, **kwargs):
+        # Принудительно обновляем данные из базы, игнорируя кэш
+        queryset = self.get_queryset()
+        # Очищаем кэш для списка кампаний пользователя
+        cache_key = f"campaigns_list_{request.user.id}"
+        from django.core.cache import cache
+        cache.delete(cache_key)
+        
         return super().list(request, *args, **kwargs)
 
     def perform_create(self, serializer):
         serializer.save(user=self.request.user)
 
+    def retrieve(self, request, *args, **kwargs):
+        # Принудительно обновляем данные из базы, игнорируя кэш
+        instance = self.get_object()
+        # Очищаем кэш для конкретной кампании
+        cache_key = f"campaign_{instance.id}"
+        from django.core.cache import cache
+        cache.delete(cache_key)
+        
+        return super().retrieve(request, *args, **kwargs)
+
     def update(self, request, *args, **kwargs):
         instance = self.get_object()
+        print(f"Update request data: {request.data}")
         serializer = self.get_serializer(instance, data=request.data, partial=True)
         if not serializer.is_valid():
+            print(f"Serializer errors: {serializer.errors}")
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        
+        print(f"Serializer validated data: {serializer.validated_data}")
         
         # Если это черновик, сохраняем все поля как есть
         if instance.status == Campaign.STATUS_DRAFT:
             self.perform_update(serializer)
+            print(f"Campaign after update: template={instance.template}, sender_email={instance.sender_email}, contact_lists={list(instance.contact_lists.all())}")
             return Response(serializer.data)
             
         # Для других статусов выполняем полную валидацию
@@ -55,10 +78,34 @@ class CampaignViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['post'], url_path='send')
     def send(self, request, pk=None):
         campaign = self.get_object()
+        
+        print(f"Send campaign: {campaign.id}")
+        print(f"Campaign status: {campaign.status}")
+        print(f"Campaign template: {campaign.template}")
+        print(f"Campaign sender_email: {campaign.sender_email}")
+        print(f"Campaign contact_lists: {list(campaign.contact_lists.all())}")
+        print(f"Campaign sender_name: {campaign.sender_name}")
 
         if campaign.status != Campaign.STATUS_DRAFT:
             return Response({'detail': 'Можно отправить только черновик.'},
                             status=status.HTTP_400_BAD_REQUEST)
+
+        # Проверяем, не запущена ли уже кампания
+        if campaign.celery_task_id:
+            # Проверяем статус существующей задачи
+            from celery.result import AsyncResult
+            task_result = AsyncResult(campaign.celery_task_id)
+            
+            if task_result.state in ['PENDING', 'STARTED']:
+                return Response({
+                    'detail': 'Кампания уже отправляется.',
+                    'task_id': campaign.celery_task_id,
+                    'task_status': task_result.state
+                }, status=status.HTTP_400_BAD_REQUEST)
+            elif task_result.state in ['SUCCESS', 'FAILURE', 'REVOKED']:
+                # Очищаем старый task_id
+                campaign.celery_task_id = None
+                campaign.save(update_fields=['celery_task_id'])
 
         # --- ОГРАНИЧЕНИЕ ПО ТАРИФУ НА ОТПРАВКУ ---
         user = request.user
@@ -88,72 +135,106 @@ class CampaignViewSet(viewsets.ModelViewSet):
             return Response({'error': f'Превышен дневной лимит отправки писем по вашему тарифу: {daily_limit}.'}, status=status.HTTP_400_BAD_REQUEST)
         if monthly_limit and sent_this_month + recipients_count > monthly_limit:
             return Response({'error': f'Превышен месячный лимит отправки писем по вашему тарифу: {monthly_limit}.'}, status=status.HTTP_400_BAD_REQUEST)
-        # --- КОНЕЦ ОГРАНИЧЕНИЯ ---
+
+        # --- ВАЛИДАЦИЯ ПОЛЕЙ КАМПАНИИ ---
+        print("Validating campaign fields:")
+        print(f"  name: {campaign.name}")
+        print(f"  template: {campaign.template}")
+        print(f"  sender_email: {campaign.sender_email}")
+        print(f"  subject: {campaign.subject}")
 
         # Проверяем обязательные поля
-        missing = []
-        
-        # Проверяем простые поля
-        for field in ('name', 'template', 'sender_email', 'subject'):
-            value = getattr(campaign, field)
-            if not value:
-                missing.append(field)
-        
-        # Проверяем sender_name через sender_email
-        if not campaign.sender_email:
-            missing.append('sender_email')
-        
-        # Проверяем списки контактов
-        if not campaign.contact_lists.exists():
-            missing.append('contact_lists')
-            
-        # Проверяем шаблон
+        if not campaign.name:
+            return Response({'error': 'Название кампании обязательно.'}, status=status.HTTP_400_BAD_REQUEST)
         if not campaign.template:
-            missing.append('template')
-            
-        # Проверяем email отправителя
+            return Response({'error': 'Шаблон письма обязателен.'}, status=status.HTTP_400_BAD_REQUEST)
         if not campaign.sender_email:
-            missing.append('sender_email')
+            return Response({'error': 'Email отправителя обязателен.'}, status=status.HTTP_400_BAD_REQUEST)
+        if not campaign.subject:
+            return Response({'error': 'Тема письма обязательна.'}, status=status.HTTP_400_BAD_REQUEST)
+        if not campaign.contact_lists.exists():
+            return Response({'error': 'Список контактов обязателен.'}, status=status.HTTP_400_BAD_REQUEST)
 
-        if missing:
-            return Response(
-                {'detail': f'Не заполнены: {", ".join(missing)}'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
+        # Проверяем, что email отправителя верифицирован
+        if not campaign.sender_email.is_verified:
+            return Response({'error': 'Email отправителя должен быть верифицирован.'}, status=status.HTTP_400_BAD_REQUEST)
 
-        # Проверяем наличие контента в шаблоне
-        if not campaign.template.html_content:
-            return Response(
-                {'detail': 'Шаблон не содержит HTML-контента'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-
+        print("Starting campaign sending...")
+        
         try:
-            # Очищаем предыдущие записи об отправке
-            EmailTracking.objects.filter(campaign=campaign).delete()
-            CampaignRecipient.objects.filter(campaign=campaign).delete()
-
-            # Запускаем асинхронную отправку через Celery
-            task = send_campaign.delay(str(campaign.id))
+            # Проверяем доступность Celery
+            from celery import current_app
+            inspect = current_app.control.inspect()
+            stats = inspect.stats()
             
-            # Сохраняем task_id в модели
+            if not stats:
+                return Response({
+                    'error': 'Celery worker недоступен. Проверьте, что Celery запущен.',
+                    'detail': 'No active workers found'
+                }, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+            
+            print(f"Found {len(stats)} active Celery workers")
+            
+            # Запускаем задачу Celery с дополнительными параметрами
+            print("Starting Celery task...")
+            task = send_campaign.apply_async(
+                args=[campaign.id],
+                countdown=1,  # Запуск через 1 секунду
+                expires=1800,  # Истекает через 30 минут
+                retry=True,
+                retry_policy={
+                    'max_retries': 3,
+                    'interval_start': 0,
+                    'interval_step': 0.2,
+                    'interval_max': 0.2,
+                }
+            )
+            print(f"Celery task started: {task.id}")
+            
+            # Ждем немного и проверяем, что задача действительно запустилась
+            import time
+            time.sleep(2)
+            
+            # Проверяем статус задачи
+            task_result = task.result
+            print(f"Task status after 2 seconds: {task.status}")
+            
+            if task.status == 'PENDING':
+                print("Task is still pending - this might indicate a problem")
+                # Проверяем, есть ли активные задачи
+                active_tasks = inspect.active()
+                if active_tasks:
+                    print(f"Active tasks: {active_tasks}")
+                else:
+                    print("No active tasks found")
+            
+            # Сохраняем task_id в кампании
             campaign.celery_task_id = task.id
             campaign.save(update_fields=['celery_task_id'])
             
+            print(f"Task status: {task.status}")
+            
             return Response({
-                'detail': 'Кампания запущена в фоновом режиме.',
+                'message': 'Кампания запущена на отправку.',
                 'task_id': task.id,
-                'status': 'sending',
-                'status_display': 'Отправляется'
-            })
-
+                'task_status': task.status,
+                'recipients_count': recipients_count,
+                'workers_count': len(stats)
+            }, status=status.HTTP_200_OK)
+            
         except Exception as e:
-            campaign.status = Campaign.STATUS_FAILED
-            campaign.save(update_fields=['status'])
-            return Response(
-                {'detail': f'Ошибка при запуске кампании: {str(e)}'},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
-            )
+            print(f"Error starting campaign: {e}")
+            import traceback
+            traceback.print_exc()
+            
+            # Очищаем task_id в случае ошибки
+            campaign.celery_task_id = None
+            campaign.save(update_fields=['celery_task_id'])
+            
+            return Response({
+                'error': 'Ошибка запуска кампании.',
+                'detail': str(e)
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     @action(detail=True, methods=['get'])
     def progress(self, request, pk=None):
@@ -283,6 +364,14 @@ class CampaignViewSet(viewsets.ModelViewSet):
                 return 0
             return round(((current - previous) / previous) * 100, 1)
         
+        # Получаем информацию о тарифе пользователя
+        try:
+            from apps.billing.utils import get_user_plan_info, update_plan_emails_sent
+            update_plan_emails_sent(request.user)
+            plan_info = get_user_plan_info(request.user)
+        except Exception as e:
+            plan_info = None
+        
         return Response({
             'sent': total_sent,
             'delivered': total_delivered,
@@ -293,7 +382,8 @@ class CampaignViewSet(viewsets.ModelViewSet):
             'openedTrend': calculate_trend(week_opened, prev_week_opened),
             'clickedTrend': calculate_trend(week_clicked, prev_week_clicked),
             'newSubscribers': 0,  # Пока не реализовано
-            'subscribersTrend': 0  # Пока не реализовано
+            'subscribersTrend': 0,  # Пока не реализовано
+            'planInfo': plan_info
         })
 
     @action(detail=True, methods=['post'])
@@ -355,10 +445,11 @@ class CampaignViewSet(viewsets.ModelViewSet):
             campaign.status = Campaign.STATUS_SENDING
             campaign.save(update_fields=['status'])
             
-            # Запускаем отправку в отдельном потоке
-            import threading
-            thread = threading.Thread(target=self._send_sync, args=(campaign,))
-            thread.start()
+            # Запускаем отправку через Celery
+            from apps.campaigns.tasks import send_campaign
+            task = send_campaign.delay(str(campaign.id))
+            campaign.celery_task_id = task.id
+            campaign.save(update_fields=['celery_task_id'])
 
             return Response({
                 'detail': 'Кампания запущена повторно.',
@@ -373,6 +464,104 @@ class CampaignViewSet(viewsets.ModelViewSet):
                 {'detail': f'Ошибка при повторной отправке: {str(e)}'},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
+
+    @action(detail=True, methods=['get'])
+    def task_status(self, request, pk=None):
+        """Проверка статуса задачи Celery"""
+        campaign = self.get_object()
+        
+        if not campaign.celery_task_id:
+            return Response({
+                'task_id': None,
+                'status': 'no_task',
+                'message': 'Нет активной задачи'
+            })
+        
+        try:
+            from celery.result import AsyncResult
+            task_result = AsyncResult(campaign.celery_task_id)
+            
+            # Получаем дополнительную информацию
+            info = {
+                'task_id': campaign.celery_task_id,
+                'status': task_result.state,
+                'ready': task_result.ready(),
+                'successful': task_result.successful() if task_result.ready() else None,
+                'failed': task_result.failed() if task_result.ready() else None,
+            }
+            
+            # Если задача завершена, добавляем результат
+            if task_result.ready():
+                try:
+                    result = task_result.result
+                    info['result'] = result
+                except Exception as e:
+                    info['result_error'] = str(e)
+            
+            # Если задача в процессе, добавляем прогресс
+            if task_result.state == 'PROGRESS':
+                info['progress'] = task_result.info
+            
+            return Response(info)
+            
+        except Exception as e:
+            return Response({
+                'task_id': campaign.celery_task_id,
+                'status': 'error',
+                'error': str(e)
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+    @action(detail=False, methods=['get'])
+    def system_status(self, request):
+        """Проверка статуса системы Celery"""
+        try:
+            from celery import current_app
+            inspect = current_app.control.inspect()
+            
+            # Проверяем активных workers
+            stats = inspect.stats()
+            active_tasks = inspect.active()
+            registered_tasks = inspect.registered()
+            
+            # Проверяем очереди
+            from django.core.cache import cache
+            redis_info = {}
+            try:
+                import redis
+                r = redis.Redis.from_url(settings.CELERY_BROKER_URL)
+                redis_info = {
+                    'connected': r.ping(),
+                    'queue_lengths': {}
+                }
+                
+                # Проверяем длину очередей
+                for queue in ['campaigns', 'email', 'default']:
+                    try:
+                        redis_info['queue_lengths'][queue] = r.llen(queue)
+                    except:
+                        redis_info['queue_lengths'][queue] = 'unknown'
+            except Exception as e:
+                redis_info = {'error': str(e)}
+            
+            return Response({
+                'workers': {
+                    'count': len(stats) if stats else 0,
+                    'active': bool(stats),
+                    'details': stats
+                },
+                'tasks': {
+                    'active': len(active_tasks.get('active', [])) if active_tasks else 0,
+                    'registered': len(registered_tasks.get('registered', [])) if registered_tasks else 0
+                },
+                'redis': redis_info,
+                'timestamp': timezone.now().isoformat()
+            })
+            
+        except Exception as e:
+            return Response({
+                'error': 'Ошибка проверки статуса системы',
+                'detail': str(e)
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 class CampaignListView(LoginRequiredMixin, TemplateView):

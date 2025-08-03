@@ -4,6 +4,7 @@ from django.db import IntegrityError
 from django.shortcuts import get_object_or_404
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.http import HttpResponse
+from django.utils import timezone
 import json
 from datetime import datetime
 
@@ -77,32 +78,25 @@ class ContactListViewSet(viewsets.ModelViewSet):
         contact_limit = getattr(plan, 'subscribers', 0)
         # Считаем общее число контактов во всех списках пользователя
         total_contacts = Contact.objects.filter(contact_list__owner=user).count()
+        
         if contact_limit and total_contacts >= contact_limit:
-            return Response({'error': f'Превышен лимит контактов по вашему тарифу: {contact_limit}.'}, status=status.HTTP_400_BAD_REQUEST)
+            error_message = f'Превышен лимит контактов.'
+            return Response({'error': error_message}, status=status.HTTP_400_BAD_REQUEST)
         # --- КОНЕЦ ОГРАНИЧЕНИЯ ---
 
         ser = ContactSerializer(data=request.data)
+        
         if ser.is_valid():
-            # Валидация уже выполнена в сериализаторе
-            contact = ser.save(contact_list=contact_list)
-            
-            # Возвращаем результат с подробной информацией о валидации
-            response_data = ser.data
-            response_data['validation_message'] = 'Контакт добавлен и прошел полную валидацию'
-            
-            # Добавляем информацию о статусе
-            status_messages = {
-                Contact.VALID: 'Email валиден и готов к рассылке',
-                Contact.INVALID: 'Email не прошел валидацию',
-                Contact.BLACKLIST: 'Email в черном списке (временный домен)'
-            }
-            response_data['status_message'] = status_messages.get(contact.status, 'Неизвестный статус')
-            
-            # Добавляем предупреждения, если есть
-            if hasattr(ser, 'validated_data') and 'warnings' in ser.validated_data:
-                response_data['warnings'] = ser.validated_data['warnings']
-            
-            return Response(response_data, status=status.HTTP_201_CREATED)
+            try:
+                # Проверяем, не существует ли уже такой email в этом списке
+                email = ser.validated_data['email']
+                if Contact.objects.filter(contact_list=contact_list, email=email).exists():
+                    return Response({'email': ['Этот email уже существует в данном списке']}, status=status.HTTP_400_BAD_REQUEST)
+                
+                contact = ser.save(contact_list=contact_list)
+                return Response(ser.data, status=status.HTTP_201_CREATED)
+            except Exception as e:
+                return Response({'error': f'Ошибка при сохранении контакта: {str(e)}'}, status=status.HTTP_400_BAD_REQUEST)
         return Response(ser.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
@@ -168,7 +162,7 @@ class ContactListViewSet(viewsets.ModelViewSet):
                 emails_to_validate.append((i, email))
             
             # Валидируем email батчами для ускорения
-            batch_size = 100  # Увеличиваем размер батча
+            batch_size = 500  # Увеличиваем размер батча для снижения нагрузки
             for batch_start in range(0, len(emails_to_validate), batch_size):
                 batch_end = min(batch_start + batch_size, len(emails_to_validate))
                 batch = emails_to_validate[batch_start:batch_end]
@@ -178,8 +172,8 @@ class ContactListViewSet(viewsets.ModelViewSet):
                     try:
                         processed += 1
                         
-                        # Обновляем прогресс каждые 100 email
-                        if processed % 100 == 0:
+                        # Обновляем прогресс каждые 500 email (уменьшаем частоту)
+                        if processed % 500 == 0:
                             import_task.processed_emails = processed
                             import_task.save()
                         
@@ -215,8 +209,8 @@ class ContactListViewSet(viewsets.ModelViewSet):
                             contacts_to_create.append(new_contact)
                             invalid_count += 1
                         
-                        # Батчинг: сохраняем каждые 200 контактов
-                        if len(contacts_to_create) >= 200:
+                        # Батчинг: сохраняем каждые 500 контактов (увеличиваем размер)
+                        if len(contacts_to_create) >= 500:
                             try:
                                 Contact.objects.bulk_create(contacts_to_create, ignore_conflicts=True)
                                 contacts_to_create = []
@@ -481,6 +475,139 @@ class ContactListViewSet(viewsets.ModelViewSet):
         response = HttpResponse(zip_buffer.getvalue(), content_type='application/zip')
         response['Content-Disposition'] = f'attachment; filename="contacts_{contact_list.name}_{datetime.now().strftime("%Y-%m-%d")}.zip"'
         return response
+
+    @action(detail=True, methods=['post'], url_path='import-optimized')
+    def import_contacts_optimized(self, request, pk=None):
+        """
+        POST /contactlists/{pk}/import-optimized/ — оптимизированный импорт для больших объемов
+        """
+        import time
+        from django.db import transaction
+        start_time = time.time()
+        
+        contact_list = self.get_object()
+        file_obj = request.FILES.get('file')
+        if not file_obj:
+            return Response({'detail': 'No file uploaded.'},
+                            status=status.HTTP_400_BAD_REQUEST)
+
+        # Создаем задачу импорта
+        import_task = ImportTask.objects.create(
+            contact_list=contact_list,
+            filename=file_obj.name,
+            status=ImportTask.PROCESSING
+        )
+
+        try:
+            # Читаем email адреса из файла
+            emails = parse_emails(file_obj, file_obj.name)
+            total_emails = len(emails)
+            
+            # Обновляем задачу с общим количеством
+            import_task.total_emails = total_emails
+            import_task.save()
+            
+            added = 0
+            invalid_count = 0
+            blacklisted_count = 0
+            error_count = 0
+            processed = 0
+            
+            # Получаем все существующие email для быстрой проверки
+            existing_emails = set(Contact.objects.filter(
+                contact_list=contact_list
+            ).values_list('email', flat=True))
+            
+            # Обрабатываем email большими батчами
+            batch_size = 1000  # Большой размер батча
+            contacts_to_create = []
+            
+            for i, email in enumerate(emails):
+                try:
+                    processed += 1
+                    
+                    # Обновляем прогресс каждые 1000 email
+                    if processed % 1000 == 0:
+                        import_task.processed_emails = processed
+                        import_task.save()
+                    
+                    # Быстрая проверка существования
+                    if email in existing_emails:
+                        continue
+                    
+                    # Быстрая валидация без DNS для большинства доменов
+                    from .utils import validate_email_fast
+                    validation_result = validate_email_fast(email)
+                    
+                    if validation_result['is_valid']:
+                        status_code = validation_result['status']
+                        
+                        new_contact = Contact(
+                            contact_list=contact_list,
+                            email=email,
+                            status=status_code
+                        )
+                        contacts_to_create.append(new_contact)
+                        added += 1
+                        if status_code == Contact.BLACKLIST:
+                            blacklisted_count += 1
+                    else:
+                        new_contact = Contact(
+                            contact_list=contact_list,
+                            email=email,
+                            status=Contact.INVALID
+                        )
+                        contacts_to_create.append(new_contact)
+                        invalid_count += 1
+                    
+                    # Сохраняем большими батчами
+                    if len(contacts_to_create) >= batch_size:
+                        with transaction.atomic():
+                            Contact.objects.bulk_create(contacts_to_create, ignore_conflicts=True)
+                        contacts_to_create = []
+                        
+                except Exception:
+                    error_count += 1
+                    continue
+            
+            # Сохраняем оставшиеся контакты
+            if contacts_to_create:
+                with transaction.atomic():
+                    Contact.objects.bulk_create(contacts_to_create, ignore_conflicts=True)
+
+            # Завершаем задачу
+            elapsed_time = time.time() - start_time
+            import_task.status = ImportTask.COMPLETED
+            import_task.processed_emails = processed
+            import_task.imported_count = added
+            import_task.invalid_count = invalid_count
+            import_task.blacklisted_count = blacklisted_count
+            import_task.error_count = error_count
+            import_task.completed_at = timezone.now()
+            import_task.save()
+
+            return Response({
+                'task_id': str(import_task.id),
+                'imported': added,
+                'invalid_count': invalid_count,
+                'blacklisted_count': blacklisted_count,
+                'error_count': error_count,
+                'total_processed': processed,
+                'total_in_file': total_emails,
+                'elapsed_time': round(elapsed_time, 2),
+                'status': 'completed'
+            }, status=status.HTTP_201_CREATED)
+            
+        except Exception as e:
+            # Обновляем задачу с ошибкой
+            import_task.status = ImportTask.FAILED
+            import_task.error_message = str(e)
+            import_task.completed_at = timezone.now()
+            import_task.save()
+            
+            return Response({
+                'detail': f'Import failed: {str(e)}'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 class ListSpaView(LoginRequiredMixin, TemplateView):

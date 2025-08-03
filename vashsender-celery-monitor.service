@@ -1,0 +1,29 @@
+[Unit]
+Description=VashSender Celery Monitor
+After=network.target vashsender-celery.service
+Wants=vashsender-celery.service
+
+[Service]
+Type=simple
+User=root
+Group=root
+WorkingDirectory=/var/www/vashsender
+ExecStart=/var/www/vashsender/start_celery_production.sh monitor
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+
+# Ограничения ресурсов
+MemoryMax=512M
+CPUQuota=50%
+
+# Безопасность
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/log/vashsender /var/run/vashsender
+
+[Install]
+WantedBy=multi-user.target 

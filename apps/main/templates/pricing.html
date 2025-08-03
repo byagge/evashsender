@@ -203,15 +203,17 @@
           type="range" 
           id="subscribers-slider" 
           min="1000" 
-          max="10000" 
+          max="1000000" 
           step="1000" 
           value="1000"
           class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer slider"
         >
         <div class="flex justify-between text-xs text-[#6b7a99] mt-2">
           <span>1,000</span>
-          <span>5,000</span>
-          <span>10,000</span>
+          <span>50,000</span>
+          <span>100,000</span>
+          <span>500,000</span>
+          <span>1,000,000</span>
         </div>
       </div>
 
@@ -241,15 +243,17 @@
           type="range" 
           id="letters-slider" 
           min="1000" 
-          max="10000" 
+          max="1000000" 
           step="1000" 
           value="1000"
           class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer slider"
         >
         <div class="flex justify-between text-xs text-[#6b7a99] mt-2">
           <span>1,000</span>
-          <span>5,000</span>
-          <span>10,000</span>
+          <span>50,000</span>
+          <span>100,000</span>
+          <span>500,000</span>
+          <span>1,000,000</span>
         </div>
       </div>
 
@@ -397,20 +401,59 @@
   </footer>
 
   <script>
-    // Глобальная переменная для статуса авторизации
+    // Глобальные переменные
     let isAuthenticated = false;
-    let currentPlanId = null;
+    let plansData = {
+      free: [],
+      subscribers: [],
+      letters: []
+    };
 
     // Проверка статуса авторизации при загрузке страницы
     async function checkAuthStatus() {
       try {
         const response = await fetch('/billing/check-auth/');
         const data = await response.json();
-        isAuthenticated = data.is_authenticated;
+        isAuthenticated = data.authenticated;
         console.log('Auth status:', isAuthenticated);
       } catch (error) {
         console.error('Error checking auth status:', error);
         isAuthenticated = false;
+      }
+    }
+
+    // Загрузка тарифов с сервера
+    async function loadPlans() {
+      try {
+        console.log('Loading plans from /api/plans/');
+        const response = await fetch('/api/plans/');
+        
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
+        const contentType = response.headers.get('content-type');
+        if (!contentType || !contentType.includes('application/json')) {
+          const text = await response.text();
+          console.error('Response is not JSON:', text);
+          throw new Error('Response is not JSON');
+        }
+        
+        const data = await response.json();
+        console.log('Raw API response:', data);
+        
+        if (data.success) {
+          plansData = data.plans;
+          console.log('Plans loaded:', plansData);
+          
+          // Обновляем слайдеры и цены
+          updateSliders();
+        } else {
+          console.error('Failed to load plans:', data.error);
+        }
+      } catch (error) {
+        console.error('Error loading plans:', error);
+        console.error('Error details:', error.message);
       }
     }
 
@@ -428,67 +471,170 @@
         return;
       }
 
-      // Платный тариф - определяем ID тарифа по типу и текущим значениям слайдеров
-      let planId = null;
+      // Платный тариф - находим подходящий тариф по значениям слайдеров
+      let selectedPlan = null;
       
       if (planType === 'subscribers') {
         const subscribersCount = parseInt(document.getElementById('subscribers-slider').value);
-        if (subscribersCount <= 1000) {
-          planId = 2;
-        } else if (subscribersCount <= 5000) {
-          planId = 3;
-        } else {
-          planId = 4;
-        }
+        selectedPlan = findPlanBySubscribers(subscribersCount);
       } else if (planType === 'letters') {
         const lettersCount = parseInt(document.getElementById('letters-slider').value);
-        if (lettersCount <= 1000) {
-          planId = 5;
-        } else if (lettersCount <= 5000) {
-          planId = 6;
-        } else {
-          planId = 7;
-        }
+        selectedPlan = findPlanByEmails(lettersCount);
       }
 
-      if (planId) {
-        window.location.href = `/purchase/confirm/?plan_id=${planId}`;
+      if (selectedPlan) {
+        window.location.href = `/billing/confirm/?plan_id=${selectedPlan.id}`;
       } else {
-        alert('Ошибка: не удалось определить тариф');
+        alert('Ошибка: не удалось найти подходящий тариф');
       }
     }
 
-    // Pricing data with interpolation
-    const pricing = {
-      subscribers: { 1000: 770, 5000: 2900, 10000: 4900 },
-      letters: { 1000: 430, 5000: 1500, 10000: 2500 }
-    };
-
-    // Function to interpolate price between known values
-    function interpolatePrice(value, priceMap) {
-      const keys = Object.keys(priceMap).map(Number).sort((a, b) => a - b);
+    // Поиск тарифа по количеству подписчиков
+    function findPlanBySubscribers(count) {
+      const plans = plansData.subscribers;
       
-      // If exact match, return that price
-      if (priceMap[value]) {
-        return priceMap[value];
+      // Сначала ищем точное совпадение
+      let exactMatch = plans.find(plan => plan.subscribers === count);
+      if (exactMatch) return exactMatch;
+      
+      // Ищем ближайший подходящий тариф
+      let bestPlan = null;
+      let minDifference = Infinity;
+      
+      for (let plan of plans) {
+        if (plan.subscribers >= count) {
+          const difference = plan.subscribers - count;
+          if (difference < minDifference) {
+            minDifference = difference;
+            bestPlan = plan;
+          }
+        }
       }
       
-      // Find the two closest values
-      let lower = keys[0];
-      let upper = keys[keys.length - 1];
+      return bestPlan || plans[0]; // Возвращаем первый тариф если ничего не найдено
+    }
+
+    // Поиск тарифа по количеству писем
+    function findPlanByEmails(count) {
+      const plans = plansData.letters;
       
-      for (let i = 0; i < keys.length - 1; i++) {
-        if (value >= keys[i] && value <= keys[i + 1]) {
-          lower = keys[i];
-          upper = keys[i + 1];
+      // Сначала ищем точное совпадение
+      let exactMatch = plans.find(plan => plan.emails_per_month === count);
+      if (exactMatch) return exactMatch;
+      
+      // Ищем ближайший подходящий тариф
+      let bestPlan = null;
+      let minDifference = Infinity;
+      
+      for (let plan of plans) {
+        if (plan.emails_per_month >= count) {
+          const difference = plan.emails_per_month - count;
+          if (difference < minDifference) {
+            minDifference = difference;
+            bestPlan = plan;
+          }
+        }
+      }
+      
+      return bestPlan || plans[0]; // Возвращаем первый тариф если ничего не найдено
+    }
+
+    // Обновление слайдеров на основе загруженных тарифов
+    function updateSliders() {
+      // Обновляем слайдер подписчиков
+      if (plansData.subscribers.length > 0) {
+        const subscribersPlans = plansData.subscribers;
+        const minSubscribers = Math.min(...subscribersPlans.map(p => p.subscribers));
+        const maxSubscribers = Math.max(...subscribersPlans.map(p => p.subscribers));
+        
+        const subscribersSlider = document.getElementById('subscribers-slider');
+        subscribersSlider.min = minSubscribers;
+        subscribersSlider.max = maxSubscribers;
+        // Используем более точный шаг для больших диапазонов
+        const range = maxSubscribers - minSubscribers;
+        if (range <= 10000) {
+          subscribersSlider.step = 1000;
+        } else if (range <= 100000) {
+          subscribersSlider.step = 5000;
+        } else {
+          subscribersSlider.step = 10000;
+        }
+        subscribersSlider.value = minSubscribers;
+        
+        updateSubscribers();
+      }
+      
+      // Обновляем слайдер писем
+      if (plansData.letters.length > 0) {
+        const lettersPlans = plansData.letters;
+        const minEmails = Math.min(...lettersPlans.map(p => p.emails_per_month));
+        const maxEmails = Math.max(...lettersPlans.map(p => p.emails_per_month));
+        
+        const lettersSlider = document.getElementById('letters-slider');
+        lettersSlider.min = minEmails;
+        lettersSlider.max = maxEmails;
+        // Используем более точный шаг для больших диапазонов
+        const range = maxEmails - minEmails;
+        if (range <= 10000) {
+          lettersSlider.step = 1000;
+        } else if (range <= 100000) {
+          lettersSlider.step = 5000;
+        } else {
+          lettersSlider.step = 10000;
+        }
+        lettersSlider.value = minEmails;
+        
+        updateLetters();
+      }
+    }
+
+    // Функция интерполяции цены между известными значениями
+    function interpolatePrice(value, plans) {
+      // Сортируем планы по значению (подписчики или письма)
+      const sortedPlans = plans.sort((a, b) => {
+        const aValue = a.subscribers || a.emails_per_month;
+        const bValue = b.subscribers || b.emails_per_month;
+        return aValue - bValue;
+      });
+      
+      // Если точное совпадение, возвращаем эту цену
+      const exactMatch = sortedPlans.find(plan => {
+        const planValue = plan.subscribers || plan.emails_per_month;
+        return planValue === value;
+      });
+      if (exactMatch) return exactMatch.price;
+      
+      // Если значение меньше минимального, возвращаем минимальную цену
+      const minPlan = sortedPlans[0];
+      const minValue = minPlan.subscribers || minPlan.emails_per_month;
+      if (value <= minValue) return minPlan.price;
+      
+      // Если значение больше максимального, возвращаем максимальную цену
+      const maxPlan = sortedPlans[sortedPlans.length - 1];
+      const maxValue = maxPlan.subscribers || maxPlan.emails_per_month;
+      if (value >= maxValue) return maxPlan.price;
+      
+      // Находим два ближайших значения
+      let lower = sortedPlans[0];
+      let upper = sortedPlans[sortedPlans.length - 1];
+      
+      for (let i = 0; i < sortedPlans.length - 1; i++) {
+        const currentValue = sortedPlans[i].subscribers || sortedPlans[i].emails_per_month;
+        const nextValue = sortedPlans[i + 1].subscribers || sortedPlans[i + 1].emails_per_month;
+        
+        if (value >= currentValue && value <= nextValue) {
+          lower = sortedPlans[i];
+          upper = sortedPlans[i + 1];
           break;
         }
       }
       
-      // Interpolate between the two values
-      const lowerPrice = priceMap[lower];
-      const upperPrice = priceMap[upper];
-      const ratio = (value - lower) / (upper - lower);
+      // Интерполируем между двумя значениями
+      const lowerValue = lower.subscribers || lower.emails_per_month;
+      const upperValue = upper.subscribers || upper.emails_per_month;
+      const lowerPrice = lower.price;
+      const upperPrice = upper.price;
+      const ratio = (value - lowerValue) / (upperValue - lowerValue);
       
       return Math.round(lowerPrice + (upperPrice - lowerPrice) * ratio);
     }
@@ -504,9 +650,12 @@
       const value = parseInt(subscribersSlider.value);
       subscribersSliderValue.textContent = value.toLocaleString();
       subscribersLimit.textContent = value.toLocaleString();
-      const price = interpolatePrice(value, pricing.subscribers);
-      subscribersPrice.textContent = `₽${price}`;
-      subscribersPriceSlider.textContent = `₽${price}`;
+      
+      if (plansData.subscribers.length > 0) {
+        const price = interpolatePrice(value, plansData.subscribers);
+        subscribersPrice.textContent = `₽${price}`;
+        subscribersPriceSlider.textContent = `₽${price}`;
+      }
     }
 
     // Letters slider functionality
@@ -520,9 +669,12 @@
       const value = parseInt(lettersSlider.value);
       lettersSliderValue.textContent = value.toLocaleString();
       lettersLimit.textContent = value.toLocaleString();
-      const price = interpolatePrice(value, pricing.letters);
-      lettersPrice.textContent = `₽${price}`;
-      lettersPriceSlider.textContent = `₽${price}`;
+      
+      if (plansData.letters.length > 0) {
+        const price = interpolatePrice(value, plansData.letters);
+        lettersPrice.textContent = `₽${price}`;
+        lettersPriceSlider.textContent = `₽${price}`;
+      }
     }
 
     // FAQ functionality
@@ -535,10 +687,9 @@
     }
 
     // Initialize
-    document.addEventListener('DOMContentLoaded', function() {
-      checkAuthStatus();
-      updateSubscribers();
-      updateLetters();
+    document.addEventListener('DOMContentLoaded', async function() {
+      await checkAuthStatus();
+      await loadPlans();
     });
 
     // Event listeners

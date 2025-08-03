@@ -203,6 +203,15 @@ WantedBy=multi-user.target'''.format(self.project_root)
     listen 80;
     server_name vashsender.ru www.vashsender.ru;
     
+    # Таймауты для больших запросов импорта
+    client_max_body_size 100M;
+    client_body_timeout 300s;
+    client_header_timeout 300s;
+    proxy_connect_timeout 300s;
+    proxy_send_timeout 300s;
+    proxy_read_timeout 300s;
+    send_timeout 300s;
+    
     location /static/ {
         alias /var/www/vashsender/static/;
         expires 30d;
@@ -221,6 +230,11 @@ WantedBy=multi-user.target'''.format(self.project_root)
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
+        
+        # Дополнительные таймауты для API запросов
+        proxy_connect_timeout 300s;
+        proxy_send_timeout 300s;
+        proxy_read_timeout 300s;
     }
     
     location /flower/ {

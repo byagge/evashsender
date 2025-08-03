@@ -12,11 +12,21 @@ from django.contrib import messages
 from django.db import IntegrityError
 from django.contrib.auth.forms import PasswordResetForm, SetPasswordForm
 from django.contrib.auth.views import PasswordResetView, PasswordResetDoneView, PasswordResetConfirmView, PasswordResetCompleteView
+from django.contrib.auth.decorators import login_required
+from rest_framework import status, generics, permissions
+from rest_framework.response import Response
+from rest_framework.views import APIView
+from django.contrib.auth import get_user_model
 import re
 
 from .models import User
 from .utils import get_email_provider
 from apps.billing.models import PurchasedPlan
+from .serializers import (
+    ProfileSerializer, 
+    PasswordChangeSerializer,
+    PurchasedPlanSerializer
+)
 
 class RegisterView(View):
     template_name = 'register.html'
@@ -222,7 +232,8 @@ class LogoutView(View):
 # Password Reset Views
 class CustomPasswordResetView(PasswordResetView):
     template_name = 'password_reset.html'
-    email_template_name = 'password_reset_email.html'
+    email_template_name = 'password_reset_email.txt'
+    html_email_template_name = 'password_reset_email.html'
     subject_template_name = 'password_reset_subject.txt'
     success_url = '/accounts/password_reset/done/'
     
@@ -238,6 +249,34 @@ class CustomPasswordResetView(PasswordResetView):
             return self.form_invalid(form)
         
         return super().form_valid(form)
+    
+    def send_mail(self, subject_template_name, email_template_name,
+                  context, from_email, to_email, html_email_template_name=None):
+        """
+        Переопределяем метод отправки для поддержки HTML писем
+        """
+        from django.template.loader import render_to_string
+        from django.core.mail import EmailMultiAlternatives
+        
+        subject = render_to_string(subject_template_name, context)
+        # Email subject *must not* contain newlines
+        subject = ''.join(subject.splitlines())
+        
+        # Рендерим текстовую версию
+        text_message = render_to_string(email_template_name, context)
+        
+        # Рендерим HTML версию
+        html_message = render_to_string(html_email_template_name, context)
+        
+        # Создаем письмо с альтернативными версиями
+        email = EmailMultiAlternatives(
+            subject=subject,
+            body=text_message,
+            from_email=from_email,
+            to=[to_email]
+        )
+        email.attach_alternative(html_message, "text/html")
+        email.send()
 
 
 class CustomPasswordResetDoneView(PasswordResetDoneView):
@@ -251,72 +290,6 @@ class CustomPasswordResetConfirmView(PasswordResetConfirmView):
 
 class CustomPasswordResetCompleteView(PasswordResetCompleteView):
     template_name = 'password_reset_complete.html'
-
-
-from django.contrib.auth import authenticate, login
-from django.shortcuts import render, redirect
-from django.views import View
-from django.conf import settings
-
-template_name = 'login.html'
-
-class LoginView(View):
-    template_name = 'login.html'
-
-    def get(self, request):
-        if request.user.is_authenticated:
-            return redirect('dashboard')
-        return render(request, self.template_name)
-
-    def post(self, request):
-        email = request.POST.get('email','').strip().lower()
-        password = request.POST.get('password','')
-        remember = request.POST.get('remember') == 'on'
-
-        data = {'email': email, 'remember': remember}
-        errors = {}
-        if not re.match(r'^[^\s@]+@[^\s@]+\.[^\s@]+$', email):
-            errors['email'] = 'Неверный формат email'
-        if not password:
-            errors['password'] = 'Пароль не может быть пустым'
-
-        if not errors:
-            user = authenticate(request, username=email, password=password)
-            if user is None:
-                errors['non_field'] = 'Неверный email или пароль'
-            else:
-                login(request, user, backend='apps.accounts.backends.EmailBackend')
-                if remember:
-                    request.session.set_expiry(60*60*24*30*6)
-                # После логина перенаправляем на верификацию, если не подтвердил email
-                if not user.is_email_verified:
-                    return redirect('accounts:email_sent')
-                # Получаем next параметр из URL или используем dashboard по умолчанию
-                next_url = request.GET.get('next', 'dashboard')
-                return redirect(next_url)
-
-        return render(request, self.template_name, {'errors': errors, 'data': data})
-
-
-class LogoutView(View):
-    def get(self, request):
-        logout(request)
-        return redirect(settings.LOGOUT_REDIRECT_URL)
-    
-
-
-from rest_framework import status, generics, permissions
-from rest_framework.response import Response
-from rest_framework.views import APIView
-from django.contrib.auth import get_user_model
-from apps.billing.models import PurchasedPlan
-from .serializers import (
-    ProfileSerializer, 
-    PasswordChangeSerializer,
-    PurchasedPlanSerializer
-)
-
-User = get_user_model()
 
 class ProfileUpdateAPIView(generics.UpdateAPIView):
     permission_classes = [permissions.IsAuthenticated]
@@ -354,11 +327,6 @@ class DeleteAccountAPIView(APIView):
         user = request.user
         user.delete()
         return Response({"detail": "Аккаунт удалён"}, status=status.HTTP_204_NO_CONTENT)
-
-# apps/accounts/views.py
-
-from django.contrib.auth.decorators import login_required
-from django.shortcuts import render
 
 @login_required
 def account_settings_page(request):

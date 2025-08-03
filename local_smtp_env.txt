@@ -1,0 +1,37 @@
+# Настройки для локального SMTP сервера (для тестирования)
+# Скопируйте эти настройки в файл .env
+
+# Django settings
+SECRET_KEY=your-secret-key-here
+DEBUG=False
+
+# Database settings
+DATABASE_URL=sqlite:///db.sqlite3
+
+# Redis settings
+REDIS_URL=redis://localhost:6379/0
+
+# Локальный SMTP сервер (запустите setup_local_smtp.py в отдельном терминале)
+EMAIL_HOST=localhost
+EMAIL_PORT=1025
+EMAIL_USE_TLS=False
+EMAIL_USE_SSL=False
+EMAIL_HOST_USER=
+EMAIL_HOST_PASSWORD=
+DEFAULT_FROM_EMAIL=noreply@vashsender.ru
+
+# Email sending configuration
+EMAIL_BATCH_SIZE=200
+EMAIL_RATE_LIMIT=100
+EMAIL_MAX_RETRIES=3
+EMAIL_RETRY_DELAY=60
+EMAIL_CONNECTION_TIMEOUT=30
+EMAIL_SEND_TIMEOUT=60
+
+# Celery settings
+CELERY_BROKER_URL=redis://localhost:6379/0
+CELERY_RESULT_BACKEND=redis://localhost:6379/0
+
+# Security settings
+ALLOWED_HOSTS=vashsender.ru,www.vashsender.ru,localhost,127.0.0.1
+CSRF_TRUSTED_ORIGINS=https://vashsender.ru,https://www.vashsender.ru 

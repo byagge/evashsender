@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Оплата тарифа - VashSender</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <script src="https://widget.cloudpayments.ru/bundles/cloudpayments"></script>
+</head>
+<body class="bg-gray-50">
+    <div class="min-h-screen flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
+        <div class="max-w-md w-full space-y-8">
+            <div>
+                <h2 class="mt-6 text-center text-3xl font-extrabold text-gray-900">
+                    Оплата тарифа
+                </h2>
+                <p class="mt-2 text-center text-sm text-gray-600">
+                    Безопасная оплата через CloudPayments
+                </p>
+            </div>
+            
+            <div class="bg-white shadow rounded-lg p-6">
+                <div class="mb-6">
+                    <h3 class="text-lg font-medium text-gray-900 mb-2">{{ transaction.plan.title }}</h3>
+                    <div class="text-sm text-gray-600">
+                        {% if transaction.plan.plan_type.name == 'Letters' %}
+                            <p>{{ transaction.plan.emails_per_month|floatformat:0 }} писем в месяц</p>
+                        {% else %}
+                            <p>{{ transaction.plan.subscribers|floatformat:0 }} подписчиков</p>
+                        {% endif %}
+                        <p>Срок действия: 30 дней</p>
+                    </div>
+                </div>
+                
+                <div class="border-t border-gray-200 pt-4 mb-6">
+                    <div class="flex justify-between items-center">
+                        <span class="text-lg font-medium text-gray-900">Итого к оплате:</span>
+                        <span class="text-2xl font-bold text-blue-600">{{ transaction.amount }}₽</span>
+                    </div>
+                </div>
+                
+                <div id="payment-form" class="space-y-4">
+                    <div id="card-element" class="border border-gray-300 rounded-md p-3">
+                        <!-- CloudPayments виджет будет загружен сюда -->
+                    </div>
+                    
+                    <button id="pay-button" 
+                            class="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed">
+                        Оплатить {{ transaction.amount }}₽
+                    </button>
+                    
+                    <div id="payment-status" class="hidden">
+                        <div id="success-message" class="hidden bg-green-50 border border-green-200 rounded-md p-4">
+                            <div class="flex">
+                                <div class="flex-shrink-0">
+                                    <svg class="h-5 w-5 text-green-400" viewBox="0 0 20 20" fill="currentColor">
+                                        <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" />
+                                    </svg>
+                                </div>
+                                <div class="ml-3">
+                                    <p class="text-sm font-medium text-green-800">
+                                        Оплата прошла успешно!
+                                    </p>
+                                    <p class="mt-1 text-sm text-green-700">
+                                        Тариф активирован. Перенаправление...
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div id="error-message" class="hidden bg-red-50 border border-red-200 rounded-md p-4">
+                            <div class="flex">
+                                <div class="flex-shrink-0">
+                                    <svg class="h-5 w-5 text-red-400" viewBox="0 0 20 20" fill="currentColor">
+                                        <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd" />
+                                    </svg>
+                                </div>
+                                <div class="ml-3">
+                                    <p class="text-sm font-medium text-red-800">
+                                        Ошибка оплаты
+                                    </p>
+                                    <p id="error-text" class="mt-1 text-sm text-red-700">
+                                        Произошла ошибка при обработке платежа.
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="mt-6 text-center">
+                    <a href="{% url 'dashboard' %}" class="text-sm text-blue-600 hover:text-blue-500">
+                        Вернуться в дашборд
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Конфигурация CloudPayments
+        const cloudPaymentsConfig = {
+            publicId: '{{ cloudpayments_public_id }}',
+            amount: {{ transaction.amount }},
+            currency: 'RUB',
+            description: '{{ transaction.description }}',
+            accountId: '{{ transaction.user.id }}',
+            email: '{{ transaction.user.email }}',
+            requireEmail: false,
+            skin: 'mini',
+            autoClose: 3,
+            onSuccess: function (options) {
+                console.log('Payment successful:', options);
+                showSuccess();
+                setTimeout(() => {
+                    window.location.href = '{% url "dashboard" %}';
+                }, 2000);
+            },
+            onFail: function (reason, options) {
+                console.log('Payment failed:', reason, options);
+                showError(reason);
+            },
+            onComplete: function (paymentResult, options) {
+                console.log('Payment completed:', paymentResult, options);
+            }
+        };
+
+        // Инициализация CloudPayments
+        let cp = new cp.CloudPayments();
+        
+        // Показ сообщения об успехе
+        function showSuccess() {
+            document.getElementById('payment-status').classList.remove('hidden');
+            document.getElementById('success-message').classList.remove('hidden');
+            document.getElementById('error-message').classList.add('hidden');
+            document.getElementById('pay-button').disabled = true;
+        }
+        
+        // Показ сообщения об ошибке
+        function showError(message) {
+            document.getElementById('payment-status').classList.remove('hidden');
+            document.getElementById('error-message').classList.remove('hidden');
+            document.getElementById('success-message').classList.add('hidden');
+            document.getElementById('error-text').textContent = message || 'Произошла ошибка при обработке платежа.';
+            document.getElementById('pay-button').disabled = false;
+        }
+        
+        // Обработчик кнопки оплаты
+        document.getElementById('pay-button').addEventListener('click', function() {
+            this.disabled = true;
+            this.textContent = 'Обработка...';
+            
+            // Запускаем оплату
+            cp.charge(cloudPaymentsConfig, function (result, options) {
+                if (result === 'success') {
+                    showSuccess();
+                    setTimeout(() => {
+                        window.location.href = '{% url "dashboard" %}';
+                    }, 2000);
+                } else {
+                    showError(result);
+                    document.getElementById('pay-button').textContent = 'Оплатить {{ transaction.amount }}₽';
+                }
+            });
+        });
+    </script>
+</body>
+</html> 

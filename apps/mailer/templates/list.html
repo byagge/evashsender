@@ -3,6 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <meta name="csrf-token" content="{{ csrf_token }}">
   <title>Списки контактов - vashsender</title>
   <!-- Tailwind -->
   <script src="https://cdn.tailwindcss.com"></script>
@@ -19,6 +20,7 @@
   x-init="init()" 
   class="bg-gray-50 min-h-screen"
 >
+  {% csrf_token %}
   <!-- PAGE LOADER -->
   <div
     x-show="isPageLoading"
@@ -393,6 +395,8 @@
   <div class="bg-white rounded-lg p-6 w-full max-w-md">
     <h3 class="text-lg font-semibold mb-4">Добавить контакт</h3>
 
+
+
     <div class="space-y-4">
       <div>
         <label class="block text-sm font-medium text-gray-700 mb-1">Адрес электронной почты</label>
@@ -620,11 +624,13 @@
             } else if (res.status === 400) {
               const data = await res.json();
               this.createError = data.name?.[0] || 'Не удалось создать список';
+            } else if (res.status === 403) {
+              this.createError = 'Ошибка доступа. Попробуйте обновить страницу.';
             } else {
               this.createError = 'Серверная ошибка, попробуйте ещё раз';
             }
           } catch (err) {
-            console.error(err);
+            console.error('Error creating list:', err);
             this.createError = 'Сетевая ошибка, проверьте соединение';
           } finally {
             this.isCreatingList = false;
@@ -902,6 +908,8 @@
           this.isAdding = true;
           try {
             const url = `${API_BASE}${this.selectedList.id}/contacts/`;
+            const requestData = { email, status: 'valid' };
+            
             const res = await fetch(url, {
               method: 'POST',
               credentials: 'same-origin',
@@ -909,16 +917,28 @@
                 'Content-Type': 'application/json',
                 'X-CSRFToken': getCSRFToken(),
               },
-              body: JSON.stringify({ email, status: 'valid' })
+              body: JSON.stringify(requestData)
             });
 
             if (res.ok) {
+              const responseData = await res.json();
               await this.viewList(this.selectedList);
               this.showAddModal = false;
               this.newManualEmail = '';
             } else if (res.status === 400) {
               const data = await res.json();
-              this.addError = data.email?.[0] || 'Не удалось добавить контакт';
+              
+              // Обрабатываем различные типы ошибок
+              if (data.error) {
+                // Общая ошибка (например, превышение лимита)
+                this.addError = data.error;
+              } else if (data.email && data.email.length > 0) {
+                // Ошибка валидации email
+                this.addError = data.email[0];
+              } else {
+                // Неизвестная ошибка
+                this.addError = 'Не удалось добавить контакт';
+              }
             } else {
               this.addError = 'Ошибка сервера, попробуйте еще раз';
             }
@@ -996,11 +1016,32 @@
     });
   
     function getCSRFToken() {
-      return document.cookie
+      // Сначала пытаемся получить из куки
+      let token = document.cookie
         .split(';')
         .map(c => c.trim())
         .find(c => c.startsWith('csrftoken='))
         ?.split('=')[1] || '';
+      
+      // Если токен не найден в куки, пытаемся получить из meta тега
+      if (!token) {
+        const metaToken = document.querySelector('meta[name="csrf-token"]');
+        if (metaToken) {
+          token = metaToken.getAttribute('content');
+        }
+      }
+      
+      // Если все еще нет токена, пытаемся получить из Django template
+      if (!token) {
+        const djangoToken = document.querySelector('[name=csrfmiddlewaretoken]');
+        if (djangoToken) {
+          token = djangoToken.value;
+        }
+      }
+      
+
+      
+      return token;
     }
   
     function showToast(message, type = 'success') {

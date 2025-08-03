@@ -242,6 +242,68 @@
                     </template>
                 </div>
 
+                <!-- Plan Information -->
+                <div x-show="planInfo" class="mb-8">
+                    <div class="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl p-6 border border-blue-200">
+                        <div class="flex items-center justify-between mb-4">
+                            <div class="flex items-center space-x-3">
+                                <div class="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
+                                    <i data-lucide="credit-card" class="w-5 h-5 text-blue-600"></i>
+                                </div>
+                                <div>
+                                    <h3 class="text-lg font-semibold text-gray-900" x-text="planInfo.plan_name || 'Бесплатный тариф'"></h3>
+                                    <p class="text-sm text-gray-600" x-text="planInfo.plan_type === 'Letters' ? 'Тариф с лимитом писем' : 'Тариф с лимитом подписчиков'"></p>
+                                </div>
+                            </div>
+                            <a href="/billing/" class="text-blue-600 hover:text-blue-700 text-sm font-medium flex items-center space-x-1 transition-colors">
+                                <span>Управление тарифом</span>
+                                <i data-lucide="chevron-right" class="w-4 h-4"></i>
+                            </a>
+                        </div>
+                        
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            <!-- Для тарифов с письмами -->
+                            <template x-if="planInfo.plan_type === 'Letters'">
+                                <div class="space-y-4">
+                                    <div class="bg-white rounded-lg p-4 border border-blue-100">
+                                        <div class="flex items-center justify-between mb-2">
+                                            <span class="text-sm font-medium text-gray-600">Остаток писем</span>
+                                            <span class="text-sm text-gray-500" x-text="`${planInfo.emails_sent || 0} / ${planInfo.emails_limit || 0}`"></span>
+                                        </div>
+                                        <div class="w-full bg-gray-200 rounded-full h-2">
+                                            <div class="bg-blue-600 h-2 rounded-full transition-all duration-300" 
+                                                 :style="`width: ${Math.min(100, ((planInfo.emails_sent || 0) / (planInfo.emails_limit || 1)) * 100)}%`"></div>
+                                        </div>
+                                        <p class="text-lg font-bold text-gray-900 mt-2" x-text="`${planInfo.emails_remaining || 0} писем осталось`"></p>
+                                    </div>
+                                </div>
+                            </template>
+                            
+                            <!-- Для тарифов с подписчиками -->
+                            <template x-if="planInfo.plan_type === 'Subscribers'">
+                                <div class="space-y-4">
+                                    <div class="bg-white rounded-lg p-4 border border-blue-100">
+                                        <div class="flex items-center justify-between mb-2">
+                                            <span class="text-sm font-medium text-gray-600">Дней до истечения</span>
+                                        </div>
+                                        <p class="text-lg font-bold text-gray-900" x-text="`${planInfo.days_remaining || 0} дней`"></p>
+                                        <p class="text-sm text-gray-500" x-text="planInfo.is_expired ? 'Тариф истёк' : 'Активен'"></p>
+                                    </div>
+                                </div>
+                            </template>
+                            
+                            <!-- Общая информация -->
+                            <div class="bg-white rounded-lg p-4 border border-blue-100">
+                                <div class="flex items-center justify-between mb-2">
+                                    <span class="text-sm font-medium text-gray-600">Отправлено сегодня</span>
+                                </div>
+                                <p class="text-lg font-bold text-gray-900" x-text="`${planInfo.emails_sent_today || 0} писем`"></p>
+                                <p class="text-sm text-gray-500" x-text="planInfo.has_exceeded_daily_limit ? 'Лимит превышен' : 'В пределах лимита'"></p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- Charts Section -->
                 <!--
                 <div class="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6 mb-8 charts-grid">
@@ -687,11 +749,13 @@
                 templates: [],
                 emails: [],
                 domains: [],
+                planInfo: null,
                 activityChart: null,
                 engagementChart: null,
 
                 async init() {
                     await this.loadStats();
+                    await this.loadPlanInfo();
                     await this.loadCampaigns();
                     await this.loadContactLists();
                     await this.loadTemplates();
@@ -744,6 +808,19 @@
                         console.error('Error loading stats:', error);
                         console.error('Error details:', error.message);
                         // Fallback values are already set in the initial state
+                    }
+                },
+
+                async loadPlanInfo() {
+                    try {
+                        console.log('Fetching plan info from API...');
+                        const response = await fetch('/billing/api/user-plan-info/');
+                        const data = await response.json();
+                        console.log('Plan info:', data);
+                        this.planInfo = data;
+                    } catch (error) {
+                        console.error('Error loading plan info:', error);
+                        this.planInfo = null;
                     }
                 },
 

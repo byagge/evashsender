@@ -103,8 +103,20 @@ class PurchasedPlanAdmin(admin.ModelAdmin):
 class BillingSettingsAdmin(admin.ModelAdmin):
     list_display = [
         'free_plan_subscribers', 'free_plan_emails', 'free_plan_daily_limit',
-        'currency', 'tax_rate'
+        'cloudpayments_test_mode', 'auto_renewal_enabled'
     ]
+    
+    fieldsets = (
+        (_('Бесплатный тариф'), {
+            'fields': ('free_plan_subscribers', 'free_plan_emails', 'free_plan_daily_limit')
+        }),
+        (_('CloudPayments'), {
+            'fields': ('cloudpayments_public_id', 'cloudpayments_api_secret', 'cloudpayments_test_mode')
+        }),
+        (_('Автопродление'), {
+            'fields': ('auto_renewal_enabled', 'auto_renewal_days_before')
+        }),
+    )
     
     def has_add_permission(self, request):
         """Запретить создание дополнительных записей настроек"""

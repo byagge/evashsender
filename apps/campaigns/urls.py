@@ -11,13 +11,13 @@ from .views import (
 )
 
 router = DefaultRouter()
-router.register(r'campaigns', views.CampaignViewSet, basename='campaign')
+router.register(r'api/campaigns', views.CampaignViewSet, basename='campaign')
 
 urlpatterns = [
-    path('api/', include(router.urls)),
-    path('campaigns/', views.CampaignListView.as_view(), name='campaign_list'),
-    path('campaigns/create/', views.CampaignFormView.as_view(), name='campaign_create'),
-    path('campaigns/<uuid:pk>/edit/', views.CampaignFormView.as_view(), name='campaign_edit'),
-    path('campaigns/<uuid:campaign_id>/track-open/', views.track_email_open, name='track_email_open'),
-    path('campaigns/<uuid:campaign_id>/track-click/', views.track_email_click, name='track_email_click'),
+    path('', views.CampaignListView.as_view(), name='campaign_list'),
+    path('new/', views.CampaignFormView.as_view(), name='campaign_create'),
+    path('<uuid:pk>/', views.CampaignFormView.as_view(), name='campaign_edit'),
+    path('<uuid:campaign_id>/track-open/', views.track_email_open, name='track_email_open'),
+    path('<uuid:campaign_id>/track-click/', views.track_email_click, name='track_email_click'),
+    path('', include(router.urls)),
 ]

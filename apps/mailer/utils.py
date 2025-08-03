@@ -46,6 +46,13 @@ def load_disposable_domains():
     if DISPOSABLE_DOMAINS is not None:
         return DISPOSABLE_DOMAINS
 
+    # Базовый список известных disposable доменов на случай, если не удастся загрузить
+    basic_disposable = {
+        '10minutemail.com', 'guerrillamail.com', 'mailinator.com', 'tempmail.org',
+        'yopmail.com', 'throwaway.email', 'temp-mail.org', 'sharklasers.com',
+        'getairmail.com', 'mailnesia.com', 'maildrop.cc', 'mailcatch.com'
+    }
+    
     url = "https://raw.githubusercontent.com/disposable/disposable-email-domains/master/domains.txt"
     try:
         response = requests.get(url, timeout=10)
@@ -55,13 +62,10 @@ def load_disposable_domains():
                 for line in response.text.splitlines()
                 if line.strip() and not line.startswith('#')
             )
-            print(f"{len(DISPOSABLE_DOMAINS)} disposable доменов загружено.")
         else:
-            print("Не удалось загрузить список disposable-доменов.")
-            DISPOSABLE_DOMAINS = set()
+            DISPOSABLE_DOMAINS = basic_disposable
     except Exception as e:
-        print(f"Ошибка при загрузке списка disposable доменов: {e}")
-        DISPOSABLE_DOMAINS = set()
+        DISPOSABLE_DOMAINS = basic_disposable
 
     return DISPOSABLE_DOMAINS
 
@@ -144,7 +148,7 @@ def has_mx_record(domain: str) -> bool:
         result = len(answers) > 0
         DNS_CACHE[domain] = result
         return result
-    except (dns.resolver.NXDOMAIN, dns.resolver.NoAnswer, dns.resolver.Timeout, Exception):
+    except (dns.resolver.NXDOMAIN, dns.resolver.NoAnswer, dns.resolver.Timeout, Exception) as e:
         DNS_CACHE[domain] = False
         return False
 
@@ -187,8 +191,12 @@ def is_disposable_domain(domain: str) -> bool:
     """
     Проверка на disposable домены
     """
-    disposable_domains = load_disposable_domains()
-    return domain.lower() in disposable_domains
+    try:
+        disposable_domains = load_disposable_domains()
+        result = domain.lower() in disposable_domains
+        return result
+    except Exception as e:
+        return False
 
 def is_important_domain(domain: str) -> bool:
     """
@@ -279,18 +287,26 @@ def validate_email_production(email: str) -> dict:
         result['warnings'].append('Временный email домен')
         return result
     
-    # УРОВЕНЬ 2: DNS проверки (0.5 сек)
-    if not has_mx_record(domain):
-        result['errors'].append('Домен не имеет MX записей (не может принимать почту)')
+    # УРОВЕНЬ 2: DNS проверки (0.5 сек) - с обработкой ошибок
+    try:
+        if not has_mx_record(domain):
+            result['errors'].append('Домен не имеет MX записей (не может принимать почту)')
+            return result
+    except Exception as e:
+        result['errors'].append(f'Ошибка проверки DNS: {str(e)}')
         return result
     
     # УРОВЕНЬ 3: SMTP проверка (2-5 сек) - ТОЛЬКО для важных доменов
     if is_important_domain(domain):
-        smtp_result = check_smtp_connection(email)
-        if not smtp_result['valid']:
-            result['errors'].append(smtp_result['error'])
-            return result
-        result['confidence'] = 'very_high'
+        try:
+            smtp_result = check_smtp_connection(email)
+            if not smtp_result['valid']:
+                result['errors'].append(smtp_result['error'])
+                return result
+            result['confidence'] = 'very_high'
+        except Exception as e:
+            result['warnings'].append(f'SMTP проверка пропущена: {str(e)}')
+            result['confidence'] = 'medium'
     else:
         result['confidence'] = 'medium'
     
@@ -380,7 +396,7 @@ def validate_email_strict(email: str) -> dict:
 
 def validate_email_fast(email: str) -> dict:
     """
-    Быстрая валидация email для импорта - только базовые проверки без SMTP
+    Быстрая валидация email для импорта - только базовые проверки без DNS для большинства доменов
     """
     if not email or not isinstance(email, str):
         return {'is_valid': False, 'status': Contact.INVALID, 'reason': 'Empty or invalid input'}
@@ -404,8 +420,15 @@ def validate_email_fast(email: str) -> dict:
     if is_disposable_domain(domain):
         return {'is_valid': False, 'status': Contact.BLACKLIST, 'reason': 'Disposable domain'}
     
-    # Только проверка MX для всех доменов (без SMTP)
-    if not has_mx_record(domain):
-        return {'is_valid': False, 'status': Contact.INVALID, 'reason': 'No MX record'}
+    # Проверяем только важные домены (основные почтовые провайдеры)
+    if domain in IMPORTANT_DOMAINS:
+        # Для важных доменов делаем быструю проверку MX
+        if not has_mx_record(domain):
+            return {'is_valid': False, 'status': Contact.INVALID, 'reason': 'No MX record'}
+    else:
+        # Для остальных доменов просто проверяем базовую структуру
+        # и считаем валидными (DNS проверка будет позже при отправке)
+        if len(domain) < 3 or '.' not in domain:
+            return {'is_valid': False, 'status': Contact.INVALID, 'reason': 'Invalid domain structure'}
     
     return {'is_valid': True, 'status': Contact.VALID, 'reason': 'Valid email'}

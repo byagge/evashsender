@@ -35,7 +35,7 @@ class ContactListSerializer(serializers.ModelSerializer):
 class ContactSerializer(serializers.ModelSerializer):
     class Meta:
         model = Contact
-        fields = ['id', 'email', 'first_name', 'last_name']
+        fields = ['id', 'email', 'status', 'added_date']
 
 class CampaignStatsSerializer(serializers.ModelSerializer):
     emails_sent = serializers.SerializerMethodField()
@@ -76,9 +76,12 @@ class CampaignStatsSerializer(serializers.ModelSerializer):
 
 class CampaignSerializer(serializers.ModelSerializer):
     user = serializers.ReadOnlyField(source='user.email')
-    template = EmailTemplateSerializer(read_only=True)
-    sender_email = SenderEmailSerializer(read_only=True)
-    contact_lists = ContactListSerializer(many=True, read_only=True)
+    template = serializers.PrimaryKeyRelatedField(queryset=EmailTemplate.objects.all(), required=False, allow_null=True)
+    sender_email = serializers.PrimaryKeyRelatedField(queryset=SenderEmail.objects.all(), required=False, allow_null=True)
+    sender_email_detail = SenderEmailSerializer(source='sender_email', read_only=True)
+    contact_lists = serializers.PrimaryKeyRelatedField(queryset=ContactList.objects.all(), many=True, required=False)
+    contact_lists_detail = serializers.SerializerMethodField()
+    template_detail = EmailTemplateSerializer(source='template', read_only=True)
     recipients = ContactSerializer(many=True, read_only=True)
     status_display = serializers.CharField(source='get_status_display', read_only=True)
     emails_sent = serializers.ReadOnlyField()
@@ -90,8 +93,8 @@ class CampaignSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'user', 'name', 'subject', 'content', 'status', 'status_display',
             'created_at', 'updated_at', 'scheduled_at', 'sent_at',
-            'template', 'sender_email', 'contact_lists', 'recipients',
-            'emails_sent', 'open_rate', 'click_rate', 'celery_task_id'
+            'template', 'template_detail', 'sender_email', 'sender_email_detail', 'contact_lists', 'contact_lists_detail', 'recipients',
+            'emails_sent', 'open_rate', 'click_rate', 'celery_task_id', 'sender_name'
         ]
         read_only_fields = ['id', 'user', 'created_at', 'updated_at', 'sent_at']
 
@@ -100,7 +103,7 @@ class CampaignSerializer(serializers.ModelSerializer):
         if (self.instance and self.instance.status == Campaign.STATUS_DRAFT) or not self.instance:
             # Проверяем, что хотя бы одно поле заполнено
             has_any_field = any(
-                data.get(field) for field in ['name', 'template', 'sender_email', 'subject', 'content', 'contact_lists']
+                data.get(field) for field in ['name', 'template', 'sender_email', 'subject', 'content', 'contact_lists', 'sender_name']
             )
             if not has_any_field:
                 raise serializers.ValidationError('При сохранении черновика должно быть заполнено хотя бы одно поле')
@@ -119,6 +122,8 @@ class CampaignSerializer(serializers.ModelSerializer):
         return data
 
     def get_contact_lists_detail(self, obj):
+        # Принудительно обновляем данные из базы
+        obj.refresh_from_db()
         return [
             {
                 'id': str(cl.id),
@@ -148,3 +153,12 @@ class CampaignSerializer(serializers.ModelSerializer):
 
     def get_delivery_rate(self, obj):
         return obj.delivery_rate
+
+    def to_representation(self, instance):
+        # Принудительно обновляем данные из базы перед сериализацией
+        try:
+            instance.refresh_from_db()
+        except Exception as e:
+            # Если не удалось обновить, продолжаем с текущими данными
+            pass
+        return super().to_representation(instance)

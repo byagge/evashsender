@@ -1,205 +1,95 @@
 from django.core.management.base import BaseCommand
-from django.core.cache import cache
-from django.db import connection
-from django.conf import settings
-import redis
-import smtplib
-import time
+from django.utils import timezone
+from datetime import timedelta
+from apps.campaigns.models import Campaign
+from apps.campaigns.tasks import send_campaign
+import logging
+from django.db import models
 
+logger = logging.getLogger(__name__)
 
 class Command(BaseCommand):
-    help = 'Проверка здоровья системы отправки писем'
+    help = 'Проверяет и исправляет зависшие кампании'
 
     def add_arguments(self, parser):
         parser.add_argument(
-            '--full',
+            '--fix',
             action='store_true',
-            help='Полная проверка всех компонентов',
+            help='Автоматически исправлять зависшие кампании',
+        )
+        parser.add_argument(
+            '--timeout',
+            type=int,
+            default=30,
+            help='Таймаут в минутах для определения зависшей кампании (по умолчанию 30)',
         )
 
     def handle(self, *args, **options):
-        self.stdout.write('🔍 Проверка здоровья системы VashSender...')
+        timeout_minutes = options['timeout']
+        fix_mode = options['fix']
         
-        checks = []
+        # Находим кампании, которые "зависли" в статусе "sending"
+        stuck_time = timezone.now() - timedelta(minutes=timeout_minutes)
         
-        # Проверка базы данных
-        checks.append(self.check_database())
+        stuck_campaigns = Campaign.objects.filter(
+            status=Campaign.STATUS_SENDING,
+            updated_at__lt=stuck_time
+        )
         
-        # Проверка Redis
-        checks.append(self.check_redis())
+        self.stdout.write(f"Найдено {stuck_campaigns.count()} зависших кампаний (старше {timeout_minutes} минут)")
         
-        # Проверка Celery
-        checks.append(self.check_celery())
+        if not stuck_campaigns.exists():
+            self.stdout.write(self.style.SUCCESS("Зависших кампаний не найдено"))
+            return
         
-        if options['full']:
-            # Проверка SMTP
-            checks.append(self.check_smtp())
+        for campaign in stuck_campaigns:
+            self.stdout.write(f"Кампания: {campaign.name} (ID: {campaign.id})")
+            self.stdout.write(f"  Статус: {campaign.status}")
+            self.stdout.write(f"  Обновлена: {campaign.updated_at}")
+            self.stdout.write(f"  Task ID: {campaign.celery_task_id}")
             
-            # Проверка кэша
-            checks.append(self.check_cache())
+            if fix_mode:
+                # Проверяем, сколько писем действительно отправлено
+                total_recipients = campaign.contact_lists.aggregate(
+                    total=models.Count('contacts')
+                )['total'] or 0
+                
+                sent_recipients = campaign.recipients.filter(is_sent=True).count()
+                
+                if sent_recipients == total_recipients and total_recipients > 0:
+                    # Все письма отправлены, обновляем статус на "sent"
+                    campaign.status = Campaign.STATUS_SENT
+                    campaign.sent_at = timezone.now()
+                    campaign.celery_task_id = None
+                    campaign.save(update_fields=['status', 'sent_at', 'celery_task_id'])
+                    
+                    self.stdout.write(
+                        self.style.SUCCESS(f"  Исправлено: статус обновлен на 'sent' ({sent_recipients}/{total_recipients} писем)")
+                    )
+                elif sent_recipients > 0:
+                    # Часть писем отправлена, обновляем статус на "failed"
+                    campaign.status = Campaign.STATUS_FAILED
+                    campaign.celery_task_id = None
+                    campaign.save(update_fields=['status', 'celery_task_id'])
+                    
+                    self.stdout.write(
+                        self.style.WARNING(f"  Исправлено: статус обновлен на 'failed' ({sent_recipients}/{total_recipients} писем)")
+                    )
+                else:
+                    # Ни одно письмо не отправлено, перезапускаем кампанию
+                    campaign.status = Campaign.STATUS_DRAFT
+                    campaign.celery_task_id = None
+                    campaign.save(update_fields=['status', 'celery_task_id'])
+                    
+                    self.stdout.write(
+                        self.style.WARNING(f"  Исправлено: статус сброшен на 'draft' для повторной отправки")
+                    )
+            else:
+                self.stdout.write("  Используйте --fix для автоматического исправления")
             
-            # Проверка статических файлов
-            checks.append(self.check_static_files())
+            self.stdout.write("")
         
-        # Выводим результаты
-        self.stdout.write('\n📊 Результаты проверки:')
-        self.stdout.write('=' * 50)
-        
-        all_passed = True
-        for check in checks:
-            status = '✅' if check['status'] else '❌'
-            self.stdout.write(f"{status} {check['name']}: {check['message']}")
-            if not check['status']:
-                all_passed = False
-        
-        self.stdout.write('=' * 50)
-        
-        if all_passed:
-            self.stdout.write(
-                self.style.SUCCESS('🎉 Все проверки пройдены! Система готова к работе.')
-            )
+        if fix_mode:
+            self.stdout.write(self.style.SUCCESS("Проверка и исправление завершены"))
         else:
-            self.stdout.write(
-                self.style.ERROR('⚠️  Обнаружены проблемы. Проверьте логи и настройки.')
-            )
-    
-    def check_database(self):
-        """Проверка подключения к базе данных"""
-        try:
-            with connection.cursor() as cursor:
-                cursor.execute("SELECT 1")
-                cursor.fetchone()
-            return {
-                'name': 'База данных',
-                'status': True,
-                'message': 'Подключение активно'
-            }
-        except Exception as e:
-            return {
-                'name': 'База данных',
-                'status': False,
-                'message': f'Ошибка подключения: {str(e)}'
-            }
-    
-    def check_redis(self):
-        """Проверка подключения к Redis"""
-        try:
-            r = redis.Redis.from_url(settings.CELERY_BROKER_URL)
-            r.ping()
-            return {
-                'name': 'Redis',
-                'status': True,
-                'message': 'Подключение активно'
-            }
-        except Exception as e:
-            return {
-                'name': 'Redis',
-                'status': False,
-                'message': f'Ошибка подключения: {str(e)}'
-            }
-    
-    def check_celery(self):
-        """Проверка Celery"""
-        try:
-            from celery import current_app
-            inspect = current_app.control.inspect()
-            stats = inspect.stats()
-            
-            if stats:
-                active_workers = len(stats)
-                return {
-                    'name': 'Celery',
-                    'status': True,
-                    'message': f'{active_workers} активных worker процессов'
-                }
-            else:
-                return {
-                    'name': 'Celery',
-                    'status': False,
-                    'message': 'Нет активных worker процессов'
-                }
-        except Exception as e:
-            return {
-                'name': 'Celery',
-                'status': False,
-                'message': f'Ошибка проверки: {str(e)}'
-            }
-    
-    def check_smtp(self):
-        """Проверка SMTP сервера"""
-        try:
-            smtp = smtplib.SMTP(
-                settings.EMAIL_HOST,
-                settings.EMAIL_PORT,
-                timeout=10
-            )
-            
-            if settings.EMAIL_USE_TLS:
-                smtp.starttls()
-            
-            if settings.EMAIL_HOST_USER and settings.EMAIL_HOST_PASSWORD:
-                smtp.login(settings.EMAIL_HOST_USER, settings.EMAIL_HOST_PASSWORD)
-            
-            smtp.quit()
-            
-            return {
-                'name': 'SMTP',
-                'status': True,
-                'message': f'{settings.EMAIL_HOST}:{settings.EMAIL_PORT} доступен'
-            }
-        except Exception as e:
-            return {
-                'name': 'SMTP',
-                'status': False,
-                'message': f'Ошибка подключения: {str(e)}'
-            }
-    
-    def check_cache(self):
-        """Проверка кэша"""
-        try:
-            cache.set('health_check', 'ok', 60)
-            value = cache.get('health_check')
-            
-            if value == 'ok':
-                return {
-                    'name': 'Кэш',
-                    'status': True,
-                    'message': 'Работает корректно'
-                }
-            else:
-                return {
-                    'name': 'Кэш',
-                    'status': False,
-                    'message': 'Ошибка записи/чтения'
-                }
-        except Exception as e:
-            return {
-                'name': 'Кэш',
-                'status': False,
-                'message': f'Ошибка: {str(e)}'
-            }
-    
-    def check_static_files(self):
-        """Проверка статических файлов"""
-        try:
-            import os
-            static_root = getattr(settings, 'STATIC_ROOT', None)
-            
-            if static_root and os.path.exists(static_root):
-                return {
-                    'name': 'Статические файлы',
-                    'status': True,
-                    'message': f'Директория {static_root} существует'
-                }
-            else:
-                return {
-                    'name': 'Статические файлы',
-                    'status': False,
-                    'message': 'Директория не найдена'
-                }
-        except Exception as e:
-            return {
-                'name': 'Статические файлы',
-                'status': False,
-                'message': f'Ошибка: {str(e)}'
-            } 
+            self.stdout.write("Для автоматического исправления используйте --fix") 

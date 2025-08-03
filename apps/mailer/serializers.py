@@ -10,42 +10,54 @@ class ContactSerializer(serializers.ModelSerializer):
     
     def validate_email(self, value):
         """Валидация email адреса при ручном добавлении"""
-        from .utils import validate_email_production
+        from .utils import is_syntax_valid, is_reserved_domain, is_disposable_domain
         
         # Приводим к нижнему регистру
         email = value.lower().strip()
         
-        # Проверяем email с полной продакшен-валидацией (включая SMTP)
-        validation_result = validate_email_production(email)
+        # Базовая проверка синтаксиса
+        syntax_valid = is_syntax_valid(email)
+        if not syntax_valid:
+            raise serializers.ValidationError('Неверный синтаксис email адреса')
         
-        if not validation_result['is_valid']:
-            # Формируем понятное сообщение об ошибке
-            if validation_result['errors']:
-                error_msg = '; '.join(validation_result['errors'])
-            else:
-                error_msg = 'Email адрес не прошел валидацию'
-            raise serializers.ValidationError(error_msg)
+        try:
+            domain = email.split('@', 1)[1].lower()
+        except (ValueError, IndexError) as e:
+            raise serializers.ValidationError('Не удалось извлечь домен')
+        
+        # Проверка зарезервированных доменов
+        is_reserved = is_reserved_domain(domain)
+        if is_reserved:
+            raise serializers.ValidationError('Зарезервированный домен')
+        
+        # Проверка disposable доменов (предупреждение, но не ошибка)
+        is_disposable = is_disposable_domain(domain)
+        if is_disposable:
+            # Добавляем предупреждение, но не блокируем
+            pass
         
         # Возвращаем очищенный email
         return email
     
     def validate(self, data):
         """Дополнительная валидация при ручном добавлении"""
-        from .utils import validate_email_production
+        from .utils import is_disposable_domain
         
         email = data.get('email', '')
         if email:
-            validation_result = validate_email_production(email)
-            
-            # Устанавливаем правильный статус на основе валидации
-            if validation_result['is_valid']:
-                data['status'] = validation_result['status']
-            else:
+            try:
+                domain = email.split('@', 1)[1].lower()
+                
+                # Устанавливаем статус на основе проверок
+                if is_disposable_domain(domain):
+                    data['status'] = Contact.BLACKLIST
+                else:
+                    data['status'] = Contact.VALID
+                    
+            except (ValueError, IndexError) as e:
                 data['status'] = Contact.INVALID
-            
-            # Добавляем предупреждения в контекст, если есть
-            if validation_result.get('warnings'):
-                data['warnings'] = validation_result['warnings']
+        else:
+            pass
         
         return data
 

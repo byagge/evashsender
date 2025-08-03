@@ -1,0 +1,70 @@
+# Команды для настройки Postfix на сервере
+# Выполните эти команды на сервере от имени root
+
+echo "=== НАСТРОЙКА POSTFIX ДЛЯ ОТПРАВКИ ПИСЕМ ==="
+
+# 1. Проверяем текущие настройки
+echo "Текущие настройки:"
+postconf -n
+
+# 2. Настраиваем Postfix для отправки писем
+echo "Настройка для отправки писем..."
+
+# Разрешаем отправку из локальных сетей
+postconf -e 'mynetworks = 127.0.0.0/8 [::1]/128 10.0.0.0/8 172.16.0.0/12 192.168.0.0/16'
+
+# Настройка для отправки писем во внешние домены
+postconf -e 'relayhost ='
+postconf -e 'smtp_tls_security_level = may'
+postconf -e 'smtp_tls_session_cache_database = btree:${data_directory}/smtp_scache'
+
+# Настройка для приема писем
+postconf -e 'smtpd_relay_restrictions = permit_mynetworks, permit_sasl_authenticated, defer_unauth_destination'
+postconf -e 'smtpd_recipient_restrictions = permit_mynetworks, permit_sasl_authenticated, reject_unauth_destination'
+
+# Настройка для аутентификации
+postconf -e 'smtpd_sasl_auth_enable = yes'
+postconf -e 'smtpd_sasl_local_domain = $myhostname'
+postconf -e 'smtpd_sasl_security_options = noanonymous'
+
+# Настройка TLS
+postconf -e 'smtpd_tls_security_level = may'
+postconf -e 'smtpd_tls_cert_file = /etc/ssl/certs/ssl-cert-snakeoil.pem'
+postconf -e 'smtpd_tls_key_file = /etc/ssl/private/ssl-cert-snakeoil.key'
+
+# Настройка для больших писем
+postconf -e 'message_size_limit = 10485760'  # 10MB
+postconf -e 'mailbox_size_limit = 0'
+
+# Настройка для отладки
+postconf -e 'debug_peer_level = 2'
+postconf -e 'debug_peer_list = 127.0.0.1'
+
+# 3. Перезапускаем Postfix
+echo "Перезапуск Postfix..."
+systemctl restart postfix
+
+# 4. Проверяем статус
+echo "Статус Postfix:"
+systemctl status postfix
+
+# 5. Проверяем новые настройки
+echo "Новые настройки:"
+postconf -n
+
+# 6. Тестируем отправку
+echo "Тестирование отправки..."
+cat > /tmp/test_email.txt << 'EOF'
+From: noreply@vashsender.ru
+To: test@example.com
+Subject: Test email from VashSender
+Content-Type: text/plain; charset=utf-8
+
+Это тестовое письмо от VashSender.
+Время отправки: $(date)
+EOF
+
+cat /tmp/test_email.txt | sendmail -t
+
+echo "=== НАСТРОЙКА ЗАВЕРШЕНА ==="
+echo "Проверьте логи: tail -f /var/log/mail.log" 

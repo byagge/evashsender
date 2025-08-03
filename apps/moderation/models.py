@@ -28,19 +28,18 @@ class CampaignModeration(models.Model):
 
     def approve(self, moderator):
         """Одобрить кампанию и начать отправку"""
+        print(f"Одобряем кампанию {self.campaign.name} модератором {moderator.email}")
+        
         self.status = 'approved'
         self.moderator = moderator
         self.save()
         
-        # Обновляем статус кампании
-        self.campaign.status = 'sending'
-        self.campaign.save()
-        
         # Запускаем фактическую отправку писем
         try:
-            from apps.campaigns.views import CampaignViewSet
-            viewset = CampaignViewSet()
-            viewset._send_sync(self.campaign)
+            from apps.campaigns.tasks import send_campaign
+            print(f"Запускаем отправку кампании {self.campaign.id} с skip_moderation=True")
+            result = send_campaign.apply(args=[str(self.campaign.id), True])  # skip_moderation=True
+            print(f"Результат отправки: {result}")
             print(f"Кампания {self.campaign.name} успешно отправлена после одобрения модератором")
         except Exception as e:
             print(f"Ошибка при отправке кампании {self.campaign.name} после одобрения: {e}")
